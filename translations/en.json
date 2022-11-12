@@ -1,11 +1,11 @@
 {
     "config": {
         "abort": {
-            "already_configured": "Device is already configured"
+            "already_configured": "A charger with this ID is already configured"
         },
         "error": {
             "cannot_connect": "Failed to connect",
-            "invalid_auth": "Invalid authentication",
+            "invalid_auth": "Authentication failure",
             "unknown": "Unexpected error"
         },
         "step": {
@@ -14,7 +14,7 @@
                 "description": "Note: login via Google or Apple not supported",
                 "data": {
                     "password": "Password",
-                    "email_address": "Email address"
+                    "username": "Email address"
                 }
             }
         }

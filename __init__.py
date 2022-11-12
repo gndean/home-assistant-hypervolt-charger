@@ -4,26 +4,44 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN
+from .common_setup import setup_hypervolt_coordinator_from_config_entry
 
-# TODO List the platforms that you want to support.
-# For your initial PR, limit it to 1 platform.
-PLATFORMS: list[Platform] = [Platform.LIGHT]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
+
+
+class HypervoltApi:
+    def __init__(self, email_address, password, charger_id):
+        self.email_address = email_address
+        self.password = password
+        self.charger_id = charger_id
+
+
+async def async_setup(hass: HomeAssistant, config) -> bool:
+    """Set up hypervolt_charger component"""
+    hass.data.setdefault(DOMAIN, {})
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Hypervolt Charger from a config entry."""
 
-    hass.data.setdefault(DOMAIN, {})
+    # hass.data.setdefault(DOMAIN, {})
     # TODO 1. Create API instance
     # TODO 2. Validate the API connection (and authentication)
     # TODO 3. Store an API object for your platforms to access
     # hass.data[DOMAIN][entry.entry_id] = MyApi(...)
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        coordinator = await setup_hypervolt_coordinator_from_config_entry(hass, entry)
+        hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    return True
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        return True
+    except Exception as exc:
+        raise ConfigEntryNotReady from exc
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

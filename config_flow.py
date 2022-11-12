@@ -13,15 +13,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_PASSWORD, CONF_USERNAME
 
 _LOGGER = logging.getLogger(__name__)
 
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required("email_address"): str,
-        vol.Required("password"): str,
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PASSWORD): str,
     }
 )
 
@@ -31,13 +31,14 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    # TODO validate the data can be used to set up a connection.
-
     # If your PyPI package is not built with async, pass your methods
     # to the executor:
     # await hass.async_add_executor_job(
     #     your_validate_func, data["username"], data["password"]
     # )
+
+    # SHORTCUT WHILE DEBUGGING
+    return {"charger_id": "test1234"}
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -52,7 +53,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
                     if response.status == 200:
                         login_form_url = response.url
                         state = login_form_url.query["state"]
-                        login_form_data = f"state={state}&username={data['email_address']}&password={data['password']}&action=default"
+                        login_form_data = f"state={state}&username={data[CONF_USERNAME]}&password={data[CONF_PASSWORD]}&action=default"
                         session.headers.update(
                             {"content-type": "application/x-www-form-urlencoded"}
                         )
@@ -71,12 +72,12 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
                                         # TODO handle more than one charger
                                         # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows
-                                        charger_count = len(chargers)
+                                        # charger_count = len(chargers)
                                         charger0_id = chargers[0]["charger_id"]
-                                        charger0_date_created = chargers[0]["created"]
+                                        # charger0_date_created = chargers[0]["created"]
 
                                         # Store this in our config
-                                        return {"title": charger0_id}
+                                        return {"charger_id": charger0_id}
 
                                     elif (
                                         response.status >= 400 and response.status < 500
@@ -107,6 +108,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
                         )
                         raise CannotConnect
 
+    except InvalidAuth as exc:
+        raise InvalidAuth from exc
     except Exception as exc:
         # Assume connection error
         raise CannotConnect from exc
@@ -138,7 +141,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            return self.async_create_entry(title=info["title"], data=user_input)
+            # Ensure this charger is unique
+            await self.async_set_unique_id(info["charger_id"])
+            self._abort_if_unique_id_configured()
+
+            return self.async_create_entry(title=info["charger_id"], data=user_input)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
