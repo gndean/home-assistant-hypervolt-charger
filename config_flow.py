@@ -1,9 +1,11 @@
-"""Config flow for Hypervolt Charger integration."""
+"""Config flow for Hypervolt EV charger integration."""
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -15,29 +17,13 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO adjust the data schema to the data that you need
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required("host"): str,
-        vol.Required("username"): str,
+        vol.Required("email_address"): str,
         vol.Required("password"): str,
     }
 )
-
-
-class PlaceholderHub:
-    """Placeholder class to make tests pass.
-
-    TODO Remove this placeholder class and replace with things from your PyPI package.
-    """
-
-    def __init__(self, host: str) -> None:
-        """Initialize."""
-        self.host = host
-
-    async def authenticate(self, username: str, password: str) -> bool:
-        """Test if we can authenticate with the host."""
-        return True
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
@@ -53,18 +39,77 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     #     your_validate_func, data["username"], data["password"]
     # )
 
-    hub = PlaceholderHub(data["host"])
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://api.hypervolt.co.uk/login-url") as response:
 
-    if not await hub.authenticate(data["username"], data["password"]):
-        raise InvalidAuth
+                login_base_url = json.loads(await response.text())["login"]
 
-    # If you cannot connect:
-    # throw CannotConnect
-    # If the authentication is wrong:
-    # InvalidAuth
+                print(f"Loading URL: {login_base_url}")
 
-    # Return info that you want to store in the config entry.
-    return {"title": "Name of the device"}
+                # This will cause a 302 redirect to a new URL that loads a login form
+                async with session.get(login_base_url) as response:
+                    if response.status == 200:
+                        login_form_url = response.url
+                        state = login_form_url.query["state"]
+                        login_form_data = f"state={state}&username={data['email_address']}&password={data['password']}&action=default"
+                        session.headers.update(
+                            {"content-type": "application/x-www-form-urlencoded"}
+                        )
+                        async with session.post(
+                            login_form_url,
+                            headers=session.headers,
+                            data=login_form_data,
+                        ) as response:
+                            if response.status == 200:
+                                async with session.get(
+                                    "https://api.hypervolt.co.uk/charger/by-owner"
+                                ) as response:
+                                    if response.status == 200:
+                                        response_text = await response.text()
+                                        chargers = json.loads(response_text)["chargers"]
+
+                                        # TODO handle more than one charger
+                                        # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows
+                                        charger_count = len(chargers)
+                                        charger0_id = chargers[0]["charger_id"]
+                                        charger0_date_created = chargers[0]["created"]
+
+                                        # Store this in our config
+                                        return {"title": charger0_id}
+
+                                    elif (
+                                        response.status >= 400 and response.status < 500
+                                    ):
+                                        print(
+                                            f"Could not get chargers, status code: {response.status}"
+                                        )
+                                        raise InvalidAuth
+
+                                    print(
+                                        f"{response.url}, {response.status}, , {response_text}"
+                                    )
+                            elif response.status >= 400 and response.status < 500:
+                                print(
+                                    f"Authentication error when trying to log in, status code: {response.status}"
+                                )
+                                raise InvalidAuth
+                            else:
+                                response_text = await response.text()
+                                print(
+                                    f"Error: unable to get charger, status: {response.status}, {response_text}"
+                                )
+                                raise CannotConnect
+                    else:
+                        response_text = await response.text()
+                        print(
+                            f"Error: unable to login, status: {response.status}, {response_text}"
+                        )
+                        raise CannotConnect
+
+    except Exception as exc:
+        # Assume connection error
+        raise CannotConnect from exc
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

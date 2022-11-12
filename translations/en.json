@@ -10,10 +10,11 @@
         },
         "step": {
             "user": {
+                "title": "Log in using your Hypervolt.co.uk credentials",
+                "description": "Note: login via Google or Apple not supported",
                 "data": {
-                    "host": "Host",
                     "password": "Password",
-                    "username": "Username"
+                    "email_address": "Email address"
                 }
             }
         }
