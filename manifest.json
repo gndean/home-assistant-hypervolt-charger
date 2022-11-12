@@ -1,0 +1,15 @@
+{
+  "domain": "hypervolt_charger",
+  "name": "Hypervolt Charger",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/hypervolt_charger",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": [
+    "@gndean"
+  ],
+  "iot_class": "cloud_push"
+}
