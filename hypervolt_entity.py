@@ -12,14 +12,14 @@ class HypervoltEntity(CoordinatorEntity):
         super().__init__(coordinator)
 
     @property
-    def _tapo_coordinator(self) -> HypervoltUpdateCoordinator:
+    def _hypervolt_coordinator(self) -> HypervoltUpdateCoordinator:
         return self.coordinator
 
     @property
     def device_info(self) -> DeviceInfo:
         return {
             "identifiers": {(DOMAIN, self.coordinator.data.charger_id)},
-            # "name": self.coordinator.data.nickname,
+            "name": self.coordinator.data.charger_id,
             # "model": self.coordinator.data.model,
             "manufacturer": "Hypervolt",
         }
@@ -30,7 +30,7 @@ class HypervoltEntity(CoordinatorEntity):
 
     @property
     def name(self):
-        return "HypervoltEntity.nickname"
+        return f"hypervolt_{self.coordinator.data.charger_id}"
 
     T = TypeVar("T")
 

@@ -10,7 +10,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .hypervolt_api_client import HypervoltApiClientConfig, HypervoltApiClient
+from .hypervolt_api_client import HypervoltApiClient
 from .hypervolt_state import HypervoltDeviceState
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
@@ -33,10 +33,9 @@ async def setup_hypervolt_coordinator(
     hass: HomeAssistant, username: str, password: str, charger_id: str
 ) -> "HypervoltUpdateCoordinator":
     session = async_get_clientsession(hass)
-    config = HypervoltApiClientConfig(username, password, charger_id, session)
-    client = HypervoltApiClient.from_config(config)
+    api = HypervoltApiClient(username, password, charger_id)
 
-    coordinator = HypervoltUpdateCoordinator(hass, client=client)
+    coordinator = HypervoltUpdateCoordinator(hass, api=api)
     await coordinator.async_config_entry_first_refresh()
 
     if not coordinator.last_update_success:
@@ -49,8 +48,8 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 
 class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
-    def __init__(self, hass: HomeAssistant, client: HypervoltApiClient):
-        self.api = client
+    def __init__(self, hass: HomeAssistant, api: HypervoltApiClient):
+        self.api = api
 
         super().__init__(hass, _LOGGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
 
@@ -67,10 +66,8 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
     async def _update_with_fallback(self, retry=True):
         try:
-            # TODO
             return await self.api.get_state()
-        except Exception as error:
+        except Exception:
             if retry:
-                # TODO
                 await self.api.login()
                 return await self._update_with_fallback(False)

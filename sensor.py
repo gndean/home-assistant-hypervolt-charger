@@ -27,54 +27,20 @@ async def async_setup_entry(
     sensors = [
         HypervoltSensor(
             coordinator,
+            SensorConfig("Last session ID", None, SensorStateClass.MEASUREMENT, None),
+        ),
+        HypervoltSensor(
+            coordinator,
             SensorConfig(
-                "today energy",
+                "Last session energy",
                 SensorDeviceClass.ENERGY,
-                SensorStateClass.TOTAL_INCREASING,
+                SensorStateClass.TOTAL,
                 UnitOfEnergy.KILO_WATT_HOUR,
             ),
-        )
+        ),
     ]
 
     async_add_entities(sensors)
-
-
-class ExampleSensor(SensorEntity):
-    """Representation of a Sensor."""
-
-    _attr_name = "Example Temperature"
-    _attr_native_unit_of_measurement = TEMP_CELSIUS
-    _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def update(self) -> None:
-        """Fetch new state data for the sensor.
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        self._attr_native_value = 23
-
-
-class _HypervoltSensor(CoordinatorEntity, SensorEntity):
-    """An entity using CoordinatorEntity.
-
-    The CoordinatorEntity class provides:
-      should_poll
-      async_update
-      async_added_to_hass
-      available
-
-    """
-
-    def __init__(self, coordinator, idx):
-        """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator)
-        self.idx = idx
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._attr_is_on = self.coordinator.data[self.idx]["state"]
-        self.async_write_ha_state()
 
 
 @dataclass

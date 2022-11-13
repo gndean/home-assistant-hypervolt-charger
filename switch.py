@@ -4,7 +4,7 @@ from homeassistant.components.switch import SwitchEntity
 from typing import Any
 
 from .common_setup import HypervoltUpdateCoordinator
-
+from .hypervolt_entity import HypervoltEntity
 from .const import DOMAIN
 
 
@@ -12,7 +12,7 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ) -> None:
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    switches = [ExampleSwitch()]
+    switches = [HypervoltChargingSwitch(coordinator)]
 
     async_add_entities(switches)
 
@@ -34,3 +34,28 @@ class ExampleSwitch(SwitchEntity):
     def update(self) -> None:
         """Update the switch's state."""
         pass
+
+
+class HypervoltChargingSwitch(HypervoltEntity, SwitchEntity):
+    @property
+    def is_on(self):
+        device_state = self._hypervolt_coordinator.data
+        return device_state.is_charging
+
+    async def async_turn_on(self):
+        # await self._execute_with_fallback(self._tapo_coordinator.api.on)
+        # await self._tapo_coordinator.async_request_refresh()
+        pass
+
+    async def async_turn_off(self):
+        # await self._execute_with_fallback(self._tapo_coordinator.api.off)
+        # await self._tapo_coordinator.async_request_refresh()
+        pass
+
+    @property
+    def unique_id(self):
+        return super().unique_id + "_charging"
+
+    @property
+    def name(self):
+        return super().name + " Charging"
