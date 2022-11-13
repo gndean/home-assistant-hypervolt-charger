@@ -13,11 +13,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from .hypervolt_api_client import HypervoltApiClientConfig, HypervoltApiClient
 from .hypervolt_state import HypervoltDeviceState
 
-from .const import (
-    DOMAIN,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-)
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 
 _LOGGGER = logging.getLogger(__name__)
 
@@ -29,14 +25,15 @@ async def setup_hypervolt_coordinator_from_config_entry(
         hass,
         entry.data.get(CONF_USERNAME),
         entry.data.get(CONF_PASSWORD),
+        entry.data.get(CONF_CHARGER_ID),
     )
 
 
 async def setup_hypervolt_coordinator(
-    hass: HomeAssistant, username: str, password: str
+    hass: HomeAssistant, username: str, password: str, charger_id: str
 ) -> "HypervoltUpdateCoordinator":
     session = async_get_clientsession(hass)
-    config = HypervoltApiClientConfig(username, password, session)
+    config = HypervoltApiClientConfig(username, password, charger_id, session)
     client = HypervoltApiClient.from_config(config)
 
     coordinator = HypervoltUpdateCoordinator(hass, client=client)
@@ -58,7 +55,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         super().__init__(hass, _LOGGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
 
     @property
-    def tapo_client(self) -> HypervoltApiClient:
+    def hypervolt_client(self) -> HypervoltApiClient:
         return self.api
 
     async def _async_update_data(self):

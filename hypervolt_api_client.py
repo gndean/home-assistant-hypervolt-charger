@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class HypervoltApiClientConfig:
     username: str
     password: str
+    charger_id: str
     session: Optional[aiohttp.ClientSession] = None
 
 
@@ -28,8 +29,12 @@ class HypervoltApiClient:
         return True
 
     async def get_state(self) -> HypervoltDeviceState:
-        state_dict = {"is_charging": False}
-        return HypervoltDeviceState(state=state_dict)
+        d = {}
+        d["charger_id"] = self.config.charger_id
+        d["is_charging"] = False
+
+        state = HypervoltDeviceState(d)
+        return state
 
     # async def on(self) -> bool:
     #     return await self.__set_device_state(SwitchParams(True))

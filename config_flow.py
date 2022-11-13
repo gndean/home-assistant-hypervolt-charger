@@ -145,6 +145,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(info["charger_id"])
             self._abort_if_unique_id_configured()
 
+            # Store charger ID into config
+            user_input["charger_id"] = info["charger_id"]
+
             return self.async_create_entry(title=info["charger_id"], data=user_input)
 
         return self.async_show_form(
