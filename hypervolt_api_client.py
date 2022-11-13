@@ -25,35 +25,30 @@ class HypervoltApiClient:
         self.username = username
         self.password = password
         self.charger_id = charger_id
-        self.is_logged_in = False
-        self.session = aiohttp.ClientSession()
 
-    async def login(self):
-        """Attempt to log in using credentials from config. Raises InvalidAuth or CannotConnect on failure"""
-
-        self.is_logged_in = False
+    async def login(self, session: aiohttp.ClientSession):
+        """Attempt to log in using credentials from config.
+        Raises InvalidAuth or CannotConnect on failure"""
 
         try:
-            async with self.session.get(
-                "https://api.hypervolt.co.uk/login-url"
-            ) as response:
+            async with session.get("https://api.hypervolt.co.uk/login-url") as response:
 
                 login_base_url = json.loads(await response.text())["login"]
 
                 print(f"Loading URL: {login_base_url}")
 
                 # This will cause a 302 redirect to a new URL that loads a login form
-                async with self.session.get(login_base_url) as response:
+                async with session.get(login_base_url) as response:
                     if response.status == 200:
                         login_form_url = response.url
                         state = login_form_url.query["state"]
                         login_form_data = f"state={state}&username={self.username}&password={self.password}&action=default"
-                        self.session.headers.update(
+                        session.headers.update(
                             {"content-type": "application/x-www-form-urlencoded"}
                         )
-                        async with self.session.post(
+                        async with session.post(
                             login_form_url,
-                            headers=self.session.headers,
+                            headers=session.headers,
                             data=login_form_data,
                         ) as response:
                             if response.status == 200:
@@ -80,9 +75,27 @@ class HypervoltApiClient:
                         raise InvalidAuth
 
         except InvalidAuth as exc:
+            await session.close()
             raise InvalidAuth from exc
         except Exception as exc:
+            await session.close()
             raise CannotConnect from exc
+
+        return session
+
+    async def get_chargers(self, session):
+        """Returns an array like: [{"charger_id": 123, "created": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
+        Raises InvalidAuth"""
+        async with session.get(
+            "https://api.hypervolt.co.uk/charger/by-owner"
+        ) as response:
+            if response.status == 200:
+                response_text = await response.text()
+                return json.loads(response_text)["chargers"]
+
+            elif response.status >= 400 and response.status < 500:
+                print(f"Could not get chargers, status code: {response.status}")
+                raise InvalidAuth
 
     async def get_state(self) -> HypervoltDeviceState:
         d = {}

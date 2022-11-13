@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import aiohttp
 from typing import Any
 
 import voluptuous as vol
@@ -40,32 +41,19 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     # return {"charger_id": "test1234"}
 
     api = HypervoltApiClient(data[CONF_USERNAME], data[CONF_PASSWORD])
-    try:
-        await api.login()
+    async with aiohttp.ClientSession() as session:
+        await api.login(session)
+        chargers = await api.get_chargers(session)
+        print(f"Chargers: {chargers}")
 
-        async with api.session.get(
-            "https://api.hypervolt.co.uk/charger/by-owner"
-        ) as response:
-            if response.status == 200:
-                response_text = await response.text()
-                chargers = json.loads(response_text)["chargers"]
+        # TODO handle more than one charger
+        # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows
+        # charger_count = len(chargers)
+        charger0_id = str(chargers[0]["charger_id"])
+        # charger0_date_created = chargers[0]["created"]
 
-                # TODO handle more than one charger
-                # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows
-                # charger_count = len(chargers)
-                charger0_id = str(chargers[0]["charger_id"])
-                # charger0_date_created = chargers[0]["created"]
-
-                # Store this in our config
-                return {"charger_id": charger0_id}
-
-            elif response.status >= 400 and response.status < 500:
-                print(f"Could not get chargers, status code: {response.status}")
-                raise InvalidAuth
-
-            print(f"{response.url}, {response.status}, , {response_text}")
-    finally:
-        await api.session.close()
+        # Store this in our config
+        return {"charger_id": charger0_id}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
