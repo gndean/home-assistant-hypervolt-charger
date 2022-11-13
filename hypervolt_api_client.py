@@ -97,10 +97,26 @@ class HypervoltApiClient:
                 print(f"Could not get chargers, status code: {response.status}")
                 raise InvalidAuth
 
-    async def get_state(self) -> HypervoltDeviceState:
+    async def get_state(self, session: aiohttp.ClientSession) -> HypervoltDeviceState:
+        """Use API to get the current state. Raise exception on error"""
         d = {}
         d["charger_id"] = self.charger_id
         d["is_charging"] = False
+
+        async with session.get(
+            f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule"
+        ) as response:
+            if response.status == 200:
+                response_text = await response.text()
+                print(f"Hypervolt charger schedule: {response_text}")
+            elif response.status == 401:
+                print(f"Hypervolt get_state charger schedule, unauthorised")
+                raise InvalidAuth
+            else:
+                print(
+                    f"Hypervolt get_state charger schedule, error from API, status = {response.status}"
+                )
+                raise CannotConnect
 
         state = HypervoltDeviceState(d)
         return state

@@ -5,7 +5,7 @@
   "integration_type": "device",
   "config_flow": true,
   "documentation": "https://github.com/gndean/bmx-start-gate/hypervolt_charger",
-  "requirements": ["aiohttp", "websockets"],
+  "requirements": ["websockets==10.4"],
   "ssdp": [],
   "zeroconf": [],
   "homekit": {},
