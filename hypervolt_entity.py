@@ -1,4 +1,4 @@
-from .common_setup import HypervoltUpdateCoordinator
+from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .const import DOMAIN
 from typing import Union, Callable, Awaitable, TypeVar
 from homeassistant.helpers.entity import DeviceInfo
@@ -30,7 +30,7 @@ class HypervoltEntity(CoordinatorEntity):
 
     @property
     def name(self):
-        return f"hypervolt_{self.coordinator.data.charger_id}"
+        return f"Hypervolt"
 
     T = TypeVar("T")
 

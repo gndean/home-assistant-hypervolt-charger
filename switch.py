@@ -3,7 +3,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.switch import SwitchEntity
 from typing import Any
 
-from .common_setup import HypervoltUpdateCoordinator
+from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
 from .const import DOMAIN
 

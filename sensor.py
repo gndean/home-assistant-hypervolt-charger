@@ -6,13 +6,12 @@ from homeassistant.components.sensor import (
 from dataclasses import dataclass
 from typing import Optional
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import TEMP_CELSIUS
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.const import UnitOfEnergy
+from homeassistant.const import UnitOfEnergy, PERCENTAGE
 
-from .common_setup import HypervoltUpdateCoordinator
+from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
 from .const import DOMAIN
 
@@ -38,6 +37,7 @@ async def async_setup_entry(
                 UnitOfEnergy.KILO_WATT_HOUR,
             ),
         ),
+        HypervoltLedBrightnessSensor(coordinator),
     ]
 
     async_add_entities(sensors)
@@ -76,3 +76,23 @@ class HypervoltSensor(HypervoltEntity, SensorEntity):
     @property
     def native_unit_of_measurement(self) -> Optional[str]:
         return self.sensor_config.unit_measure
+
+
+class HypervoltLedBrightnessSensor(HypervoltSensor):
+    def __init__(self, coordinator):
+        super().__init__(
+            coordinator,
+            SensorConfig(
+                "LED Brightness",
+                None,
+                SensorStateClass.MEASUREMENT,
+                PERCENTAGE,
+            ),
+        )
+
+    @property
+    def native_value(self):
+        if self._hypervolt_coordinator.data.led_brightness == None:
+            return None
+        else:
+            return self._hypervolt_coordinator.data.led_brightness * 100

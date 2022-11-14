@@ -1,10 +1,9 @@
-import dataclasses
 import json
 import logging
-from typing import Optional
+import websockets
 
 from homeassistant.exceptions import HomeAssistantError
-from .hypervolt_state import HypervoltDeviceState
+from .hypervolt_device_state import HypervoltDeviceState
 
 import aiohttp
 
@@ -53,7 +52,6 @@ class HypervoltApiClient:
                         ) as response:
                             if response.status == 200:
                                 print("HypervoltApiClient logged in!")
-                                self.is_logged_in = True
                                 return True
 
                             elif response.status >= 400 and response.status < 500:
@@ -97,11 +95,13 @@ class HypervoltApiClient:
                 print(f"Could not get chargers, status code: {response.status}")
                 raise InvalidAuth
 
-    async def get_state(self, session: aiohttp.ClientSession) -> HypervoltDeviceState:
+    async def get_state(
+        self, session: aiohttp.ClientSession, state
+    ) -> HypervoltDeviceState:
         """Use API to get the current state. Raise exception on error"""
-        d = {}
-        d["charger_id"] = self.charger_id
-        d["is_charging"] = False
+        if not state:
+            state = HypervoltDeviceState()
+            state.charger_id = self.charger_id
 
         async with session.get(
             f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule"
@@ -110,7 +110,7 @@ class HypervoltApiClient:
                 response_text = await response.text()
                 print(f"Hypervolt charger schedule: {response_text}")
             elif response.status == 401:
-                print(f"Hypervolt get_state charger schedule, unauthorised")
+                print("Hypervolt get_state charger schedule, unauthorised")
                 raise InvalidAuth
             else:
                 print(
@@ -118,8 +118,44 @@ class HypervoltApiClient:
                 )
                 raise CannotConnect
 
-        state = HypervoltDeviceState(d)
         return state
+
+    async def notify_on_hypervolt_sync_push(self, session, on_message_callback):
+        """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
+
+        print(f"notify_on_hypervolt_sync_push enter")
+
+        try:
+            # Move cookies from login session to websocket
+            requests_cookies = session.cookie_jar.filter_cookies(
+                "https://api.hypervolt.co.uk"
+            )
+            cookies = ""
+            for key, cookie in requests_cookies.items():
+                cookies += f"{cookie.key}={cookie.value};"
+
+            # TODO: Move this into HypervoltApiClient
+            async for websocket in websockets.connect(
+                f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
+                extra_headers={"Cookie": cookies},
+                origin="https://hypervolt.co.uk",
+                host="api.hypervolt.co.uk",
+            ):
+                try:
+                    self.websocket_sync = websocket
+
+                    # Get a snapshot now first
+                    await websocket.send('{"id":"0", "method":"sync.snapshot"}')
+
+                    async for message in websocket:
+                        print(f"notify_on_hypervolt_sync_push recv {message}")
+                        on_message_callback(message)
+                except websockets.ConnectionClosed:
+                    self.websocket_sync = None
+                    continue
+
+        except Exception as exc:
+            print(f"notify_on_hypervolt_sync_push error {exc}")
 
     # async def on(self) -> bool:
     #     return await self.__set_device_state(SwitchParams(True))
