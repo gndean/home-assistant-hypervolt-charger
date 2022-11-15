@@ -157,6 +157,12 @@ class HypervoltApiClient:
         except Exception as exc:
             print(f"notify_on_hypervolt_sync_push error {exc}")
 
+    async def send_message_to_sync(self, message):
+        if self.websocket_sync:
+            await self.websocket_sync.send(message)
+        else:
+            print(f"send_message_to_sync cannot send because websocket_sync is not set")
+
     # async def on(self) -> bool:
     #     return await self.__set_device_state(SwitchParams(True))
 

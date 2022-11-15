@@ -9,7 +9,8 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
+# There should be a file for each of the declared platforms e.g. sensor.py
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.NUMBER]
 
 
 class HypervoltApi:

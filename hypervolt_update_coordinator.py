@@ -100,11 +100,14 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             self.api_session.close()
             self.api_session = None
 
+    # TODO: Move this parsing logic into the API class
     def hypervolt_sync_on_message_callback(self, message):
         try:
             # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
             # or
             # {"method":"sync.apply","params":[{"brightness":0.25}]}
+            # or
+            # {"jsonrpc":"2.0","id":"1","error":{"code":409,"error":"Concurrent modifications invalidated this request","data":null}}
             jmsg = json.loads(message)
             res_array = None
             if "result" in jmsg:

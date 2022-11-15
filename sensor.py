@@ -83,7 +83,7 @@ class HypervoltLedBrightnessSensor(HypervoltSensor):
         super().__init__(
             coordinator,
             SensorConfig(
-                "LED Brightness",
+                "LED Brightness (sensor)",
                 None,
                 SensorStateClass.MEASUREMENT,
                 PERCENTAGE,
@@ -92,7 +92,7 @@ class HypervoltLedBrightnessSensor(HypervoltSensor):
 
     @property
     def native_value(self):
-        if self._hypervolt_coordinator.data.led_brightness == None:
+        if self._hypervolt_coordinator.data.led_brightness is None:
             return None
         else:
             return self._hypervolt_coordinator.data.led_brightness * 100
