@@ -1,3 +1,5 @@
+import logging
+
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .const import DOMAIN
 from typing import Union, Callable, Awaitable, TypeVar
@@ -5,6 +7,8 @@ from homeassistant.helpers.entity import DeviceInfo
 
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class HypervoltEntity(CoordinatorEntity):
@@ -30,7 +34,7 @@ class HypervoltEntity(CoordinatorEntity):
 
     @property
     def name(self):
-        return f"Hypervolt"
+        return "Hypervolt"
 
     T = TypeVar("T")
 

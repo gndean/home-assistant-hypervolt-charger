@@ -61,13 +61,7 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
     # TODO: Move this formatting logic into the API class
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
-        print(f"LedBrightnessNumberEntity set value {value}")
-        message = {
-            "id": f"{datetime.datetime.utcnow().timestamp()}",
-            "method": "sync.apply",
-            "params": {"brightness": value / 100},
-        }
-        await self._hypervolt_coordinator.api.send_message_to_sync(json.dumps(message))
+        await self._hypervolt_coordinator.api.set_led_brightness(value)
 
     @property
     def native_unit_of_measurement(self) -> Optional[str]:

@@ -3,9 +3,9 @@ import logging
 import async_timeout
 import aiohttp
 import json
+import websockets
 
 from datetime import timedelta
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -22,8 +22,7 @@ from .hypervolt_device_state import (
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 
-_LOGGGER = logging.getLogger(__name__)
-
+_LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(seconds=30)
 
@@ -32,7 +31,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     def __init__(self, hass: HomeAssistant, api: HypervoltApiClient):
         self.api = api
 
-        super().__init__(hass, _LOGGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
 
         self.api_session = aiohttp.ClientSession()
         self.websocket_sync: websockets.client.WebSocketClientProtocol = None
@@ -60,7 +59,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     async def _async_update_data(self):
         try:
             async with async_timeout.timeout(10):
-                print("Hypervolt _async_update_data")
                 return await self._update_with_fallback()
         except Exception as exception:
             raise UpdateFailed() from exception
@@ -77,18 +75,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 self.api_session = aiohttp.ClientSession()
                 await self.api.login(self.api_session)
 
-                print(
-                    "Hypervolt _update_with_fallback before notify_on_hypervolt_sync_push"
-                )
-
                 notify_on_hypervolt_sync_push_task = asyncio.create_task(
                     self.api.notify_on_hypervolt_sync_push(
                         self.api_session, self.hypervolt_sync_on_message_callback
                     )
-                )
-
-                print(
-                    "Hypervolt _update_with_fallback after notify_on_hypervolt_sync_push"
                 )
 
                 return await self._update_with_fallback(False)
@@ -103,6 +93,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     # TODO: Move this parsing logic into the API class
     def hypervolt_sync_on_message_callback(self, message):
         try:
+            # Example messages:
             # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
             # or
             # {"method":"sync.apply","params":[{"brightness":0.25}]}
@@ -131,9 +122,13 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                         ]
                 self.async_set_updated_data(self.data)
             else:
-                print(
-                    f"hypervolt_sync_on_message_callback unknown message structure {message}"
+                _LOGGER.warning(
+                    "Hypervolt_sync_on_message_callback unknown message structure: %s",
+                    message,
                 )
 
         except Exception as exc:
-            print(f"hypervolt_sync_on_message_callback error: {exc}")
+            _LOGGER.error(
+                "Hypervolt_sync_on_message_callback error: %s",
+                exc,
+            )

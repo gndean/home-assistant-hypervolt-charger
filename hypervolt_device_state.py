@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 
 
@@ -30,4 +32,4 @@ class HypervoltDeviceState:
         self.current_session_voltage = None
         self.led_brightness = None
         self.lock_state = None
-        self.charge_mode = None
+        self.charge_mode: HypervoltChargeMode = None

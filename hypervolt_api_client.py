@@ -1,13 +1,20 @@
+from __future__ import annotations
+
 import json
 import logging
 import websockets
+import datetime
 
 from homeassistant.exceptions import HomeAssistantError
-from .hypervolt_device_state import HypervoltDeviceState
+from .hypervolt_device_state import (
+    HypervoltDeviceState,
+    HypervoltChargeMode,
+    HypervoltLockState,
+)
 
 import aiohttp
 
-logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 class CannotConnect(HomeAssistantError):
@@ -34,7 +41,7 @@ class HypervoltApiClient:
 
                 login_base_url = json.loads(await response.text())["login"]
 
-                print(f"Loading URL: {login_base_url}")
+                _LOGGER.info("Loading URL: %s", login_base_url)
 
                 # This will cause a 302 redirect to a new URL that loads a login form
                 async with session.get(login_base_url) as response:
@@ -51,24 +58,29 @@ class HypervoltApiClient:
                             data=login_form_data,
                         ) as response:
                             if response.status == 200:
-                                print("HypervoltApiClient logged in!")
+                                _LOGGER.info("HypervoltApiClient logged in!")
                                 return True
 
                             elif response.status >= 400 and response.status < 500:
-                                print(
-                                    f"Authentication error when trying to log in, status code: {response.status}"
+                                _LOGGER.error(
+                                    "Authentication error when trying to log in, status code: %d",
+                                    response.status,
                                 )
                                 raise InvalidAuth
                             else:
                                 response_text = await response.text()
-                                print(
-                                    f"Error: unable to get charger, status: {response.status}, {response_text}"
+                                _LOGGER.error(
+                                    "Error: unable to get charger, status: %d, %s",
+                                    response.status,
+                                    response_text,
                                 )
                                 raise CannotConnect
                     else:
                         response_text = await response.text()
-                        print(
-                            f"Error: unable to login, status: {response.status}, {response_text}"
+                        _LOGGER.error(
+                            "Error: unable to login, status: %d, %s",
+                            response.status,
+                            response_text,
                         )
                         raise InvalidAuth
 
@@ -92,7 +104,9 @@ class HypervoltApiClient:
                 return json.loads(response_text)["chargers"]
 
             elif response.status >= 400 and response.status < 500:
-                print(f"Could not get chargers, status code: {response.status}")
+                _LOGGER.error(
+                    "Could not get chargers, status code: %d", response.status
+                )
                 raise InvalidAuth
 
     async def get_state(
@@ -110,11 +124,12 @@ class HypervoltApiClient:
                 response_text = await response.text()
                 print(f"Hypervolt charger schedule: {response_text}")
             elif response.status == 401:
-                print("Hypervolt get_state charger schedule, unauthorised")
+                _LOGGER.warning("Hypervolt get_state charger schedule, unauthorised")
                 raise InvalidAuth
             else:
-                print(
-                    f"Hypervolt get_state charger schedule, error from API, status = {response.status}"
+                _LOGGER.error(
+                    "Hypervolt get_state charger schedule, error from API, status: %d",
+                    response.status,
                 )
                 raise CannotConnect
 
@@ -155,51 +170,30 @@ class HypervoltApiClient:
                     continue
 
         except Exception as exc:
-            print(f"notify_on_hypervolt_sync_push error {exc}")
+            _LOGGER.error("notify_on_hypervolt_sync_push error: %s", exc)
 
     async def send_message_to_sync(self, message):
         if self.websocket_sync:
             await self.websocket_sync.send(message)
         else:
-            print(f"send_message_to_sync cannot send because websocket_sync is not set")
+            _LOGGER.error(
+                "Send_message_to_sync cannot send because websocket_sync is not set"
+            )
 
-    # async def on(self) -> bool:
-    #     return await self.__set_device_state(SwitchParams(True))
+    async def set_led_brightness(self, value: float):
+        """Set the LED brightness, in the range [0.0, 1.0]"""
+        message = {
+            "id": f"{datetime.datetime.utcnow().timestamp()}",
+            "method": "sync.apply",
+            "params": {"brightness": value / 100},
+        }
+        await self.send_message_to_sync(json.dumps(message))
 
-    # async def off(self) -> bool:
-    #     return await self.__set_device_state(SwitchParams(False))
-
-    # async def set_brightness(self, brightness: int) -> bool:
-    #     return await self.__set_device_state(LightParams(brightness=brightness))
-
-    # async def set_color_temperature(self, color_temperature: int) -> bool:
-    #     return await self.__set_device_state(
-    #         LightParams(color_temperature=color_temperature)
-    #     )
-
-    # async def set_hue_saturation(self, hue: int, saturation: int) -> bool:
-    #     return await self.__set_device_state(
-    #         LightParams(hue=hue, saturation=saturation)
-    #     )
-
-    # async def set_light_effect(self, effect: LightEffect) -> bool:
-    #     effect_params = LightEffectParams(
-    #         enable=1, name=effect.name, brightness=100, display_colors=effect.colors
-    #     )
-    #     return await self.__set_device_state(LightParams(effect=effect_params))
-
-    # async def __set_device_state(self, device_params: DeviceInfoParams) -> bool:
-    #     try:
-    #         await self.client.set_device_state(device_params, self.TERMINAL_UUID)
-    #         return True
-    #     except Exception as e:
-    #         logger.error(e)
-    #         return False
-
-    # async def __get_energy_usage(self) -> Optional[EnergyInfo]:
-    #     try:
-    #         return EnergyInfo(
-    #             await self.client.send_tapo_request(GetEnergyUsageMethod(None))
-    #         )
-    #     except (Exception,):
-    #         return None
+    async def set_charge_mode(self, charge_mode: HypervoltChargeMode):
+        """Set the charge mode from the passed in enum class"""
+        message = {
+            "id": f"{datetime.datetime.utcnow().timestamp()}",
+            "method": "sync.apply",
+            "params": {"solar_mode": charge_mode.name.lower()},
+        }
+        await self.send_message_to_sync(json.dumps(message))

@@ -1,7 +1,6 @@
 """Config flow for Hypervolt EV charger integration."""
 from __future__ import annotations
 
-import json
 import logging
 import aiohttp
 from typing import Any
@@ -16,7 +15,6 @@ from .hypervolt_api_client import HypervoltApiClient, InvalidAuth, CannotConnect
 from .const import DOMAIN, CONF_PASSWORD, CONF_USERNAME
 
 _LOGGER = logging.getLogger(__name__)
-
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -44,7 +42,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     async with aiohttp.ClientSession() as session:
         await api.login(session)
         chargers = await api.get_chargers(session)
-        print(f"Chargers: {chargers}")
+        _LOGGER.info("Found chargers: %s", chargers)
 
         # TODO handle more than one charger
         # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows

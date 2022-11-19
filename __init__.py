@@ -1,6 +1,8 @@
 """The Hypervolt Charger integration."""
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -10,7 +12,14 @@ from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 
 # There should be a file for each of the declared platforms e.g. sensor.py
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.NUMBER]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.NUMBER,
+    Platform.SELECT,
+]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class HypervoltApi:
