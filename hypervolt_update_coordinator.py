@@ -77,7 +77,9 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
                 notify_on_hypervolt_sync_push_task = asyncio.create_task(
                     self.api.notify_on_hypervolt_sync_push(
-                        self.api_session, self.hypervolt_sync_on_message_callback
+                        self.api_session,
+                        self.get_state,
+                        self.hypervolt_sync_on_message_callback,
                     )
                 )
 
@@ -90,45 +92,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             self.api_session.close()
             self.api_session = None
 
-    # TODO: Move this parsing logic into the API class
-    def hypervolt_sync_on_message_callback(self, message):
-        try:
-            # Example messages:
-            # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
-            # or
-            # {"method":"sync.apply","params":[{"brightness":0.25}]}
-            # or
-            # {"jsonrpc":"2.0","id":"1","error":{"code":409,"error":"Concurrent modifications invalidated this request","data":null}}
-            jmsg = json.loads(message)
-            res_array = None
-            if "result" in jmsg:
-                res_array = jmsg["result"]
-            elif "params" in jmsg:
-                res_array = jmsg["params"]
+    def get_state(self) -> HypervoltDeviceState:
+        """Used by the HypervoltApiClient as a callback to get the current state before modifying"""
+        return self.data
 
-            if res_array:
-                for item in res_array:
-                    if "brightness" in item:
-                        self.data.led_brightness = item["brightness"]
-                    if "lock_state" in item:
-                        self.data.lock_state = HypervoltLockState[
-                            item["lock_state"].upper()
-                        ]
-                    if "max_current" in item:
-                        self.data.max_current_milliamps = item["max_current"]
-                    if "solar_mode" in item:
-                        self.data.charge_mode = HypervoltChargeMode[
-                            item["solar_mode"].upper()
-                        ]
-                self.async_set_updated_data(self.data)
-            else:
-                _LOGGER.warning(
-                    "Hypervolt_sync_on_message_callback unknown message structure: %s",
-                    message,
-                )
-
-        except Exception as exc:
-            _LOGGER.error(
-                "Hypervolt_sync_on_message_callback error: %s",
-                exc,
-            )
+    def hypervolt_sync_on_message_callback(self, state: HypervoltDeviceState):
+        """A callback from the HypervoltApiClient when a potential state change has been pushed"""
+        self.async_set_updated_data(state)

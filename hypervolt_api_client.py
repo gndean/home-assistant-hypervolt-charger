@@ -135,7 +135,9 @@ class HypervoltApiClient:
 
         return state
 
-    async def notify_on_hypervolt_sync_push(self, session, on_message_callback):
+    async def notify_on_hypervolt_sync_push(
+        self, session, get_state, on_message_callback
+    ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
         print(f"notify_on_hypervolt_sync_push enter")
@@ -164,7 +166,52 @@ class HypervoltApiClient:
 
                     async for message in websocket:
                         print(f"notify_on_hypervolt_sync_push recv {message}")
-                        on_message_callback(message)
+
+                        try:
+                            # Example messages:
+                            # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
+                            # or
+                            # {"method":"sync.apply","params":[{"brightness":0.25}]}
+                            # or
+                            # {"jsonrpc":"2.0","id":"1","error":{"code":409,"error":"Concurrent modifications invalidated this request","data":null}}
+                            jmsg = json.loads(message)
+                            res_array = None
+                            if "result" in jmsg:
+                                res_array = jmsg["result"]
+                            elif "params" in jmsg:
+                                res_array = jmsg["params"]
+
+                            state = get_state()
+
+                            if res_array:
+                                for item in res_array:
+                                    if "brightness" in item:
+                                        state.led_brightness = item["brightness"]
+                                    if "lock_state" in item:
+                                        state.lock_state = HypervoltLockState[
+                                            item["lock_state"].upper()
+                                        ]
+                                    if "max_current" in item:
+                                        state.max_current_milliamps = item[
+                                            "max_current"
+                                        ]
+                                    if "solar_mode" in item:
+                                        state.charge_mode = HypervoltChargeMode[
+                                            item["solar_mode"].upper()
+                                        ]
+                                on_message_callback(state)
+                            else:
+                                _LOGGER.warning(
+                                    "Hypervolt_sync_on_message_callback unknown message structure: %s",
+                                    message,
+                                )
+
+                        except Exception as exc:
+                            _LOGGER.error(
+                                "Hypervolt_sync_on_message_callback error: %s",
+                                exc,
+                            )
+
                 except websockets.ConnectionClosed:
                     self.websocket_sync = None
                     continue
