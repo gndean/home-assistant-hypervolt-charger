@@ -28,14 +28,6 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 
 class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
-    def __init__(self, hass: HomeAssistant, api: HypervoltApiClient):
-        self.api = api
-
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
-
-        self.api_session = aiohttp.ClientSession()
-        self.websocket_sync: websockets.client.WebSocketClientProtocol = None
-
     @staticmethod
     async def create_hypervolt_coordinator(
         hass: HomeAssistant, username: str, password: str, charger_id: str
@@ -52,6 +44,15 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         return coordinator
 
+    def __init__(self, hass: HomeAssistant, api: HypervoltApiClient):
+        self.api = api
+
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
+
+        self.api_session = aiohttp.ClientSession()
+        self.websocket_sync: websockets.client.WebSocketClientProtocol = None
+        self.data = HypervoltDeviceState(self.api.charger_id)
+
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
         return self.api
@@ -66,7 +67,9 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     async def _update_with_fallback(self, retry=True):
         try:
             print(f"Hypervolt _update_with_fallback, retry = {retry}")
-            return await self.api.get_state(self.api_session, self.data)
+            return await self.api.update_state_with_schedule(
+                self.api_session, self.data
+            )
         except Exception:
             if retry:
                 if self.api_session:
@@ -97,5 +100,5 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         return self.data
 
     def hypervolt_sync_on_message_callback(self, state: HypervoltDeviceState):
-        """A callback from the HypervoltApiClient when a potential state change has been pushed"""
+        """A callback from the HypervoltApiClient when a potential state change has been pushed to the /sync web socket"""
         self.async_set_updated_data(state)

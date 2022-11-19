@@ -109,13 +109,10 @@ class HypervoltApiClient:
                 )
                 raise InvalidAuth
 
-    async def get_state(
+    async def update_state_with_schedule(
         self, session: aiohttp.ClientSession, state
     ) -> HypervoltDeviceState:
-        """Use API to get the current state. Raise exception on error"""
-        if not state:
-            state = HypervoltDeviceState()
-            state.charger_id = self.charger_id
+        """Use API to update the state. Raise exception on error"""
 
         async with session.get(
             f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule"

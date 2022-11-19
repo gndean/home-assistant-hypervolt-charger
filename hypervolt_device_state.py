@@ -18,8 +18,8 @@ class HypervoltChargeMode(Enum):
 class HypervoltDeviceState:
     """Class to hold current state of Hypervolt charger"""
 
-    def __init__(self):
-        self.charger_id = None
+    def __init__(self, charger_id):
+        self.charger_id = charger_id
         self.is_charging = None
         self.last_session_id = None
         self.last_session_watthours = None
