@@ -43,14 +43,10 @@ class HypervoltChargingSwitch(HypervoltEntity, SwitchEntity):
         return device_state.is_charging
 
     async def async_turn_on(self):
-        # await self._execute_with_fallback(self._tapo_coordinator.api.on)
-        # await self._tapo_coordinator.async_request_refresh()
-        pass
+        await self._hypervolt_coordinator.api.set_charging(True)
 
     async def async_turn_off(self):
-        # await self._execute_with_fallback(self._tapo_coordinator.api.off)
-        # await self._tapo_coordinator.async_request_refresh()
-        pass
+        await self._hypervolt_coordinator.api.set_charging(False)
 
     @property
     def unique_id(self):

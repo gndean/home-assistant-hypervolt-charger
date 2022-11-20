@@ -10,6 +10,7 @@ from .hypervolt_device_state import (
     HypervoltDeviceState,
     HypervoltChargeMode,
     HypervoltLockState,
+    HypervoltReleaseState,
 )
 
 import aiohttp
@@ -31,6 +32,11 @@ class HypervoltApiClient:
         self.username = username
         self.password = password
         self.charger_id = charger_id
+
+        self.websocket_sync: websockets.client.WebSocketClientProtocol = None
+        self.websocket_session_in_progress: websockets.client.WebSocketClientProtocol = (
+            None
+        )
 
     async def login(self, session: aiohttp.ClientSession):
         """Attempt to log in using credentials from config.
@@ -109,8 +115,8 @@ class HypervoltApiClient:
                 )
                 raise InvalidAuth
 
-    async def update_state_with_schedule(
-        self, session: aiohttp.ClientSession, state
+    async def update_state_from_schedule(
+        self, session: aiohttp.ClientSession, state: HypervoltDeviceState
     ) -> HypervoltDeviceState:
         """Use API to update the state. Raise exception on error"""
 
@@ -120,12 +126,15 @@ class HypervoltApiClient:
             if response.status == 200:
                 response_text = await response.text()
                 print(f"Hypervolt charger schedule: {response_text}")
+
+                # jres = json.loads(response_text)
+
             elif response.status == 401:
-                _LOGGER.warning("Hypervolt get_state charger schedule, unauthorised")
+                _LOGGER.warning("Update_state_from_schedule, unauthorised")
                 raise InvalidAuth
             else:
                 _LOGGER.error(
-                    "Hypervolt get_state charger schedule, error from API, status: %d",
+                    "Update_state_from_schedule, error from API, status: %d",
                     response.status,
                 )
                 raise CannotConnect
@@ -157,6 +166,7 @@ class HypervoltApiClient:
             ):
                 try:
                     self.websocket_sync = websocket
+                    _LOGGER.info("Websocket_sync connected")
 
                     # Get a snapshot now first
                     await websocket.send('{"id":"0", "method":"sync.snapshot"}')
@@ -182,6 +192,7 @@ class HypervoltApiClient:
 
                             if res_array:
                                 for item in res_array:
+                                    # Only update state if properties are present, other leave state as-is
                                     if "brightness" in item:
                                         state.led_brightness = item["brightness"]
                                     if "lock_state" in item:
@@ -196,25 +207,112 @@ class HypervoltApiClient:
                                         state.charge_mode = HypervoltChargeMode[
                                             item["solar_mode"].upper()
                                         ]
+                                    if "release_state" in item:
+                                        state.release_state = HypervoltReleaseState[
+                                            item["release_state"].upper()
+                                        ]
                                 on_message_callback(state)
                             else:
                                 _LOGGER.warning(
-                                    "Hypervolt_sync_on_message_callback unknown message structure: %s",
+                                    "notify_on_hypervolt_sync_push unknown message structure: %s",
                                     message,
                                 )
 
                         except Exception as exc:
                             _LOGGER.error(
-                                "Hypervolt_sync_on_message_callback error: %s",
+                                "notify_on_hypervolt_sync_push error: %s",
                                 exc,
                             )
 
                 except websockets.ConnectionClosed:
                     self.websocket_sync = None
+                    _LOGGER.info("Websocket_sync closed")
                     continue
 
         except Exception as exc:
             _LOGGER.error("notify_on_hypervolt_sync_push error: %s", exc)
+
+    async def notify_on_hypervolt_session_in_progress_push(
+        self, session, get_state, on_message_callback
+    ):
+        """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
+
+        print("notify_on_hypervolt_session_in_progress_push enter")
+
+        try:
+            # Move cookies from login session to websocket
+            requests_cookies = session.cookie_jar.filter_cookies(
+                "https://api.hypervolt.co.uk"
+            )
+            cookies = ""
+            for key, cookie in requests_cookies.items():
+                cookies += f"{cookie.key}={cookie.value};"
+
+            # TODO: Move this into HypervoltApiClient
+            async for websocket in websockets.connect(
+                f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
+                extra_headers={"Cookie": cookies},
+                origin="https://hypervolt.co.uk",
+                host="api.hypervolt.co.uk",
+            ):
+                try:
+                    self.websocket_session_in_progress = websocket
+                    _LOGGER.info("Websocket_session_in_progress connected")
+
+                    async for message in websocket:
+                        print(
+                            f"notify_on_hypervolt_session_in_progress_push recv {message}"
+                        )
+
+                        try:
+                            # Example messages:
+                            # {"charging":false,"session":240,"milli_amps":32000,"true_milli_amps":0,"watt_hours":2371,"ccy_spent":34,"carbon_saved_grams":1036,"ct_current":0,"ct_power":0,"voltage":0}
+
+                            jmsg = json.loads(message)
+                            state = get_state()
+
+                            # Only update state if properties are present, other leave state as-is
+                            if "charging" in jmsg:
+                                state.is_charging = jmsg.get("charging")
+                            if "session" in jmsg:
+                                state.session_id = jmsg["session"]
+                            if "watt_hours" in jmsg:
+                                state.session_watthours = jmsg["watt_hours"]
+                            if "ccy_spent" in jmsg:
+                                state.session_currency_spent = jmsg["ccy_spent"]
+                            if "carbon_saved_grams" in jmsg:
+                                state.session_carbon_saved_grams = jmsg[
+                                    "carbon_saved_grams"
+                                ]
+                            if "milli_amps" in jmsg:
+                                state.max_current_milliamps = jmsg["milli_amps"]
+
+                            if "true_milli_amps" in jmsg:
+                                state.current_session_current_milliamps = jmsg[
+                                    "true_milli_amps"
+                                ]
+                            if "ct_current" in jmsg:
+                                state.current_session_ct_current = jmsg["ct_current"]
+                            if "ct_power" in jmsg:
+                                state.current_session_ct_power = jmsg["ct_power"]
+                            if "voltage" in jmsg:
+                                state.current_session_voltage = jmsg["voltage"]
+
+                            on_message_callback(state)
+
+                        except Exception as exc:
+                            _LOGGER.error(
+                                "Notify_on_hypervolt_session_in_progress_push error: %s",
+                                exc,
+                            )
+
+                except websockets.ConnectionClosed:
+                    self.websocket_session_in_progress = None
+                    _LOGGER.info("Websocket_session_in_progress closed")
+                    continue
+
+        except Exception as exc:
+            _LOGGER.error("Notify_on_hypervolt_session_in_progress_push error: %s", exc)
 
     async def send_message_to_sync(self, message):
         if self.websocket_sync:
@@ -239,5 +337,14 @@ class HypervoltApiClient:
             "id": f"{datetime.datetime.utcnow().timestamp()}",
             "method": "sync.apply",
             "params": {"solar_mode": charge_mode.name.lower()},
+        }
+        await self.send_message_to_sync(json.dumps(message))
+
+    async def set_charging(self, charging: bool):
+        """Set the charge state"""
+        message = {
+            "id": f"{datetime.datetime.utcnow().timestamp()}",
+            "method": "sync.apply",
+            "params": {"release": not charging},
         }
         await self.send_message_to_sync(json.dumps(message))
