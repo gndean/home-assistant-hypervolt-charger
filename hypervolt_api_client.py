@@ -11,6 +11,9 @@ from .hypervolt_device_state import (
     HypervoltChargeMode,
     HypervoltLockState,
     HypervoltReleaseState,
+    HypervoltActivationMode,
+    HypervoltScheduleInterval,
+    HypervoltScheduleTime,
 )
 
 import aiohttp
@@ -127,7 +130,27 @@ class HypervoltApiClient:
                 response_text = await response.text()
                 print(f"Hypervolt charger schedule: {response_text}")
 
-                # jres = json.loads(response_text)
+                jres = json.loads(response_text)
+                if jres["enabled"]:
+                    state.activation_mode = HypervoltActivationMode.SCHEDULE
+                else:
+                    state.activation_mode = HypervoltActivationMode.PLUG_AND_CHARGE
+
+                state.schedule_intervals = []
+                for interval in jres["intervals"]:
+                    start = interval[0]
+                    end = interval[1]
+
+                    state.schedule_intervals.append(
+                        HypervoltScheduleInterval(
+                            HypervoltScheduleTime(
+                                start["hours"], start["minutes"], start["seconds"]
+                            ),
+                            HypervoltScheduleTime(
+                                end["hours"], end["minutes"], end["seconds"]
+                            ),
+                        )
+                    )
 
             elif response.status == 401:
                 _LOGGER.warning("Update_state_from_schedule, unauthorised")
@@ -348,3 +371,53 @@ class HypervoltApiClient:
             "params": {"release": not charging},
         }
         await self.send_message_to_sync(json.dumps(message))
+
+    async def set_schedule(
+        self,
+        session: aiohttp.ClientSession,
+        activation_mode: HypervoltActivationMode,
+        schedule_intervals,
+    ) -> HypervoltDeviceState:
+        """Use API to update the state. Raise exception on error"""
+
+        schedule_intervals_to_push = []
+        for schedule_interval in schedule_intervals:
+            schedule_intervals_to_push.append(
+                [
+                    {
+                        "hours": schedule_interval.start_time.hours,
+                        "minutes": schedule_interval.start_time.minutes,
+                        "seconds": schedule_interval.start_time.seconds,
+                    },
+                    {
+                        "hours": schedule_interval.end_time.hours,
+                        "minutes": schedule_interval.end_time.minutes,
+                        "seconds": schedule_interval.end_time.seconds,
+                    },
+                ]
+            )
+
+        schedule_data = {
+            "type": "restricted",
+            "tz": "Europe/London",
+            "enabled": activation_mode == HypervoltActivationMode.SCHEDULE,
+            "intervals": schedule_intervals_to_push,
+        }
+
+        async with session.put(
+            url=f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule",
+            data=json.dumps(schedule_data),
+            headers={"content-type": "application/json"},
+        ) as response:
+            if response.status == 200:
+                response_text = await response.text()
+                print(f"Hypervolt charger schedule: {response_text}")
+            elif response.status == 401:
+                _LOGGER.warning("Set_schedule, unauthorised")
+                raise InvalidAuth
+            else:
+                _LOGGER.error(
+                    "Set_schedule, error from API, status: %d",
+                    response.status,
+                )
+                raise CannotConnect

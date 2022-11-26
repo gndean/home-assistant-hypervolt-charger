@@ -15,7 +15,7 @@ from homeassistant.const import PERCENTAGE
 
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
-from .hypervolt_device_state import HypervoltChargeMode
+from .hypervolt_device_state import HypervoltChargeMode, HypervoltActivationMode
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,7 +28,9 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    async_add_entities([ChargeModeSelect(coordinator)])
+    async_add_entities(
+        [ChargeModeSelect(coordinator), ActivationModeSelect(coordinator)]
+    )
 
 
 class ChargeModeSelect(HypervoltEntity, SelectEntity):
@@ -42,6 +44,10 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
     @property
     def name(self):
         return super().name + " Charge Mode"
+
+    @property
+    def unique_id(self):
+        return super().unique_id + "charge_mode"
 
     @property
     def options(self) -> list[str]:
@@ -66,3 +72,51 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
             )
         else:
             _LOGGER.warning("Unknown charge mode selected: %s", option)
+
+
+class ActivationModeSelect(HypervoltEntity, SelectEntity):
+    # TODO: Get these from translations
+    _ACTIVATION_MODE_STRINGS = ["Plug and Charge", "Schedule"]
+
+    def __init__(self, coordinator):
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator)
+
+    @property
+    def name(self):
+        return super().name + " Activation Mode"
+
+    @property
+    def unique_id(self):
+        return super().unique_id + "activation_mode"
+
+    @property
+    def options(self) -> list[str]:
+        """Return a set of selectable options."""
+
+        return self._ACTIVATION_MODE_STRINGS
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the selected entity option to represent the entity state."""
+        activation_mode = self._hypervolt_coordinator.data.activation_mode
+        if activation_mode:
+            return self._ACTIVATION_MODE_STRINGS[activation_mode.value]
+        else:
+            return None
+
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        if option and option in self._ACTIVATION_MODE_STRINGS:
+            await self._hypervolt_coordinator.api.set_schedule(
+                self._hypervolt_coordinator.api_session,
+                HypervoltActivationMode(self._ACTIVATION_MODE_STRINGS.index(option)),
+                self._hypervolt_coordinator.data.schedule_intervals,
+            )
+            # Read back schedule from API so that we're up to date
+            await self._hypervolt_coordinator.api.update_state_from_schedule(
+                self._hypervolt_coordinator.api_session,
+                self._hypervolt_coordinator.data,
+            )
+        else:
+            _LOGGER.warning("Unknown activation mode selected: %s", option)
