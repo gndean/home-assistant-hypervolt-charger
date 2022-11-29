@@ -47,7 +47,7 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
 
     @property
     def unique_id(self):
-        return super().unique_id + "charge_mode"
+        return super().unique_id + "_charge_mode"
 
     @property
     def options(self) -> list[str]:

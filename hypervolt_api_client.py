@@ -354,6 +354,15 @@ class HypervoltApiClient:
         }
         await self.send_message_to_sync(json.dumps(message))
 
+    async def set_max_current_milliamps(self, value: int):
+        """Set the Max Current Limit, in the range [6, 32]"""
+        message = {
+            "id": f"{datetime.datetime.utcnow().timestamp()}",
+            "method": "sync.apply",
+            "params": {"max_current": value},
+        }
+        await self.send_message_to_sync(json.dumps(message))
+
     async def set_charge_mode(self, charge_mode: HypervoltChargeMode):
         """Set the charge mode from the passed in enum class"""
         message = {

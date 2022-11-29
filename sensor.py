@@ -58,14 +58,6 @@ async def async_setup_entry(
         ),
         HypervoltSensor(
             coordinator,
-            "Session Max Current",
-            "max_current_milliamps",
-            device_class=SensorDeviceClass.CURRENT,
-            state_class=SensorStateClass.MEASUREMENT,
-            scale_factor=0.001,
-        ),
-        HypervoltSensor(
-            coordinator,
             "Charger Current",
             "current_session_current_milliamps",
             device_class=SensorDeviceClass.CURRENT,

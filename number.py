@@ -22,7 +22,9 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    async_add_entities([LedBrightnessNumberEntity(coordinator)])
+    async_add_entities(
+        [LedBrightnessNumberEntity(coordinator), MaxCurrentNumberEntity(coordinator)]
+    )
 
 
 class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
@@ -32,7 +34,7 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
 
     @property
     def unique_id(self):
-        return super().unique_id + "_" + "LED Brightness".replace(" ", "_")
+        return super().unique_id + "_led_brightness"
 
     @property
     def name(self):
@@ -58,7 +60,6 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
         # Match the app's step size
         return 25.0
 
-    # TODO: Move this formatting logic into the API class
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
         await self._hypervolt_coordinator.api.set_led_brightness(value)
@@ -66,3 +67,40 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
     @property
     def native_unit_of_measurement(self) -> Optional[str]:
         return PERCENTAGE
+
+
+class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
+    def __init__(self, coordinator):
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator)
+
+    @property
+    def unique_id(self):
+        return super().unique_id + "_max_current"
+
+    @property
+    def name(self):
+        return super().name + " Max Current"
+
+    @property
+    def native_value(self) -> float:
+        if self._hypervolt_coordinator.data.max_current_milliamps is None:
+            return None
+        else:
+            return self._hypervolt_coordinator.data.max_current_milliamps / 1000
+
+    @property
+    def native_min_value(self) -> float:
+        return 6.0
+
+    @property
+    def native_max_value(self) -> float:
+        return 32
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Update the current value."""
+        await self._hypervolt_coordinator.api.set_max_current_milliamps(value * 1000)
+
+    @property
+    def native_unit_of_measurement(self) -> Optional[str]:
+        return "A"
