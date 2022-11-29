@@ -83,21 +83,21 @@ class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
         return super().name + " Max Current"
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> int:
         if self._hypervolt_coordinator.data.max_current_milliamps is None:
             return None
         else:
             return self._hypervolt_coordinator.data.max_current_milliamps / 1000
 
     @property
-    def native_min_value(self) -> float:
-        return 6.0
+    def native_min_value(self) -> int:
+        return 6
 
     @property
-    def native_max_value(self) -> float:
+    def native_max_value(self) -> int:
         return 32
 
-    async def async_set_native_value(self, value: float) -> None:
+    async def async_set_native_value(self, value: int) -> None:
         """Update the current value."""
         await self._hypervolt_coordinator.api.set_max_current_milliamps(value * 1000)
 
