@@ -234,6 +234,10 @@ class HypervoltApiClient:
                                         state.release_state = HypervoltReleaseState[
                                             item["release_state"].upper()
                                         ]
+                                    if "lock_state" in item:
+                                        state.release_state = HypervoltLockState[
+                                            item["lock_state"].upper()
+                                        ]
                                 on_message_callback(state)
                             else:
                                 _LOGGER.warning(
@@ -380,6 +384,29 @@ class HypervoltApiClient:
             "params": {"release": not charging},
         }
         await self.send_message_to_sync(json.dumps(message))
+
+    async def set_lock_state(self, session: aiohttp.ClientSession, lock: bool):
+        """Set the lock state"""
+
+        lock_status_data = {"is_locked": lock}
+
+        async with session.post(
+            url=f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/lock-status",
+            data=json.dumps(lock_status_data),
+            headers={"content-type": "application/json"},
+        ) as response:
+            if response.status == 200:
+                response_text = await response.text()
+                print(f"Hypervolt set lock status: {response_text}")
+            elif response.status == 401:
+                _LOGGER.warning("Set lock status, unauthorised")
+                raise InvalidAuth
+            else:
+                _LOGGER.error(
+                    "Set lock status, error from API, status: %d",
+                    response.status,
+                )
+                raise CannotConnect
 
     async def set_schedule(
         self,
