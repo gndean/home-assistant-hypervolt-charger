@@ -24,7 +24,10 @@ from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(seconds=30)
+# Polling interval to get schedule/charge mode, and to re-check
+# other properties that should otherwise be synced promptly via websocket pushes
+# but we poll too to ensure we don't miss anything
+SCAN_INTERVAL = timedelta(minutes=5)
 
 
 class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
@@ -63,12 +66,20 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         except Exception as exception:
             raise UpdateFailed() from exception
 
-    async def _update_with_fallback(self, retry=True):
+    async def _update_with_fallback(self, retry=True) -> HypervoltDeviceState:
         try:
             print(f"Hypervolt _update_with_fallback, retry = {retry}")
-            return await self.api.update_state_from_schedule(
+            state = await self.api.update_state_from_schedule(
                 self.api_session, self.data
             )
+
+            if retry:
+                # No need to grab a snapshot if we've just created the sync websock
+                # as a sync will immediately be done within notify_on_hypervolt_sync_push_task
+                await self.api.send_sync_snapshot_request()
+
+            return state
+
         except Exception:
             if retry:
                 if self.api_session:

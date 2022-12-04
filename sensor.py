@@ -9,7 +9,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.const import UnitOfEnergy, PERCENTAGE, UnitOfMass, UnitOfPower
+from homeassistant.const import (
+    UnitOfEnergy,
+    PERCENTAGE,
+    UnitOfMass,
+    UnitOfPower,
+    ELECTRIC_CURRENT_AMPERE,
+    ELECTRIC_POTENTIAL_VOLT,
+)
 
 from .hypervolt_device_state import HypervoltReleaseState
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
@@ -41,15 +48,6 @@ async def async_setup_entry(
         ),
         HypervoltSensor(
             coordinator,
-            "Session Currency Spent",
-            "session_currency_spent",
-            device_class=SensorDeviceClass.MONETARY,
-            state_class=SensorStateClass.MEASUREMENT,
-            unit_of_measure="£",
-            scale_factor=0.01,
-        ),
-        HypervoltSensor(
-            coordinator,
             "Session Carbon Saved",
             "session_carbon_saved_grams",
             device_class=SensorDeviceClass.WEIGHT,
@@ -62,6 +60,7 @@ async def async_setup_entry(
             "current_session_current_milliamps",
             device_class=SensorDeviceClass.CURRENT,
             state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=ELECTRIC_CURRENT_AMPERE,
             scale_factor=0.001,
         ),
         HypervoltSensor(
@@ -70,6 +69,7 @@ async def async_setup_entry(
             "current_session_ct_current",
             device_class=SensorDeviceClass.CURRENT,
             state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=ELECTRIC_CURRENT_AMPERE,
             scale_factor=0.001,
         ),
         HypervoltSensor(
@@ -87,6 +87,7 @@ async def async_setup_entry(
             "current_session_voltage",
             device_class=SensorDeviceClass.VOLTAGE,
             state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=ELECTRIC_POTENTIAL_VOLT,
         ),
         ChargingReadinessSensor(coordinator),
     ]

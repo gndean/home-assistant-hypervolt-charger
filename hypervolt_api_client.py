@@ -192,7 +192,7 @@ class HypervoltApiClient:
                     _LOGGER.info("Websocket_sync connected")
 
                     # Get a snapshot now first
-                    await websocket.send('{"id":"0", "method":"sync.snapshot"}')
+                    await self.send_sync_snapshot_request()
 
                     async for message in websocket:
                         print(f"notify_on_hypervolt_sync_push recv {message}")
@@ -311,8 +311,6 @@ class HypervoltApiClient:
                                 state.session_carbon_saved_grams = jmsg[
                                     "carbon_saved_grams"
                                 ]
-                            if "milli_amps" in jmsg:
-                                state.max_current_milliamps = jmsg["milli_amps"]
 
                             if "true_milli_amps" in jmsg:
                                 state.current_session_current_milliamps = jmsg[
@@ -348,6 +346,18 @@ class HypervoltApiClient:
             _LOGGER.error(
                 "Send_message_to_sync cannot send because websocket_sync is not set"
             )
+
+    async def send_sync_snapshot_request(self) -> bool:
+        """Ask for a snapshot of the /sync state. Returns true if the sync websocket is ready, false otherwise"""
+        if self.websocket_sync:
+            message = {
+                "id": f"{datetime.datetime.utcnow().timestamp()}",
+                "method": "sync.snapshot",
+            }
+            await self.send_message_to_sync(json.dumps(message))
+            return True
+        else:
+            return False
 
     async def set_led_brightness(self, value: float):
         """Set the LED brightness, in the range [0.0, 1.0]"""
