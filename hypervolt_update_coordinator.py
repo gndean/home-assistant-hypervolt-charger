@@ -68,7 +68,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
     async def _update_with_fallback(self, retry=True) -> HypervoltDeviceState:
         try:
-            print(f"Hypervolt _update_with_fallback, retry = {retry}")
+            _LOGGER.debug(f"Hypervolt _update_with_fallback, retry = {retry}")
             state = await self.api.update_state_from_schedule(
                 self.api_session, self.data
             )
@@ -115,13 +115,15 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         if self.notify_on_hypervolt_sync_push_task:
             was_cancelled = self.notify_on_hypervolt_sync_push_task.cancel()
-            print(f"notify_on_hypervolt_sync_push_task was cancelled :{was_cancelled}")
+            _LOGGER.debug(
+                f"notify_on_hypervolt_sync_push_task was cancelled :{was_cancelled}"
+            )
 
         if self.notify_on_hypervolt_session_in_progress_push_task:
             was_cancelled = (
                 self.notify_on_hypervolt_session_in_progress_push_task.cancel()
             )
-            print(
+            _LOGGER.debug(
                 f"notify_on_hypervolt_session_in_progress_push_task was cancelled :{was_cancelled}"
             )
 

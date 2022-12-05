@@ -129,7 +129,7 @@ class HypervoltApiClient:
         ) as response:
             if response.status == 200:
                 response_text = await response.text()
-                print(f"Hypervolt charger schedule: {response_text}")
+                _LOGGER.debug(f"Hypervolt charger schedule: {response_text}")
 
                 jres = json.loads(response_text)
                 if jres["enabled"]:
@@ -170,7 +170,7 @@ class HypervoltApiClient:
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
-        print(f"notify_on_hypervolt_sync_push enter")
+        _LOGGER.debug(f"notify_on_hypervolt_sync_push enter")
 
         try:
             # Move cookies from login session to websocket
@@ -196,7 +196,7 @@ class HypervoltApiClient:
                     await self.send_sync_snapshot_request()
 
                     async for message in websocket:
-                        print(f"notify_on_hypervolt_sync_push recv: {message}")
+                        _LOGGER.debug(f"notify_on_hypervolt_sync_push recv: {message}")
 
                         try:
                             # Example messages:
@@ -265,7 +265,7 @@ class HypervoltApiClient:
     ):
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
 
-        print("notify_on_hypervolt_session_in_progress_push enter")
+        _LOGGER.debug("notify_on_hypervolt_session_in_progress_push enter")
 
         try:
             # Move cookies from login session to websocket
@@ -288,7 +288,7 @@ class HypervoltApiClient:
                     _LOGGER.info("Websocket_session_in_progress connected")
 
                     async for message in websocket:
-                        print(
+                        _LOGGER.debug(
                             f"notify_on_hypervolt_session_in_progress_push recv {message}"
                         )
 
@@ -408,7 +408,7 @@ class HypervoltApiClient:
         ) as response:
             if response.status == 200:
                 response_text = await response.text()
-                print(f"Hypervolt set lock status: {response_text}")
+                _LOGGER.debug(f"Hypervolt set lock status: {response_text}")
             elif response.status == 401:
                 _LOGGER.warning("Set lock status, unauthorised")
                 raise InvalidAuth
@@ -458,7 +458,7 @@ class HypervoltApiClient:
         ) as response:
             if response.status == 200:
                 response_text = await response.text()
-                print(f"Hypervolt charger schedule: {response_text}")
+                _LOGGER.debug(f"Hypervolt charger schedule: {response_text}")
             elif response.status == 401:
                 _LOGGER.warning("Set_schedule, unauthorised")
                 raise InvalidAuth
