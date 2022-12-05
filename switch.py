@@ -21,25 +21,6 @@ async def async_setup_entry(
     async_add_entities(switches)
 
 
-class ExampleSwitch(SwitchEntity):
-    @property
-    def is_on(self):
-        """Return true if switch is on."""
-        return False
-
-    def turn_on(self, **kwargs: Any) -> None:
-        """Turn the switch on."""
-        pass
-
-    def turn_off(self, **kwargs: Any) -> None:
-        """Turn the switch off."""
-        pass
-
-    def update(self) -> None:
-        """Update the switch's state."""
-        pass
-
-
 class HypervoltChargingSwitch(HypervoltEntity, SwitchEntity):
     @property
     def is_on(self):

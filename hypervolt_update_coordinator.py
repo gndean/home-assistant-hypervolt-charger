@@ -35,8 +35,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     async def create_hypervolt_coordinator(
         hass: HomeAssistant, username: str, password: str, charger_id: str
     ) -> "HypervoltUpdateCoordinator":
-        # session = async_get_clientsession(hass)
-        # TODO: Use this session, to get auto cleanup?
         api = HypervoltApiClient(username, password, charger_id)
 
         coordinator = HypervoltUpdateCoordinator(hass, api=api)
@@ -120,8 +118,12 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             print(f"notify_on_hypervolt_sync_push_task was cancelled :{was_cancelled}")
 
         if self.notify_on_hypervolt_session_in_progress_push_task:
-            was_cancelled = self.notify_on_hypervolt_session_in_progress_push_task.cancel()
-            print(f"notify_on_hypervolt_session_in_progress_push_task was cancelled :{was_cancelled}")
+            was_cancelled = (
+                self.notify_on_hypervolt_session_in_progress_push_task.cancel()
+            )
+            print(
+                f"notify_on_hypervolt_session_in_progress_push_task was cancelled :{was_cancelled}"
+            )
 
     def get_state(self) -> HypervoltDeviceState:
         """Used by the HypervoltApiClient as a callback to get the current state before modifying"""

@@ -88,7 +88,7 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
 
     @property
     def unique_id(self):
-        return super().unique_id + "activation_mode"
+        return super().unique_id + "_activation_mode"
 
     @property
     def options(self) -> list[str]:

@@ -29,14 +29,6 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    # If your PyPI package is not built with async, pass your methods
-    # to the executor:
-    # await hass.async_add_executor_job(
-    #     your_validate_func, data["username"], data["password"]
-    # )
-
-    # SHORTCUT WHILE DEBUGGING
-    # return {"charger_id": "test1234"}
 
     api = HypervoltApiClient(data[CONF_USERNAME], data[CONF_PASSWORD])
     async with aiohttp.ClientSession() as session:
@@ -46,9 +38,14 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
         # TODO handle more than one charger
         # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows
-        # charger_count = len(chargers)
+        charger_count = len(chargers)
+        if charger_count > 1:
+            _LOGGER.warning(
+                "%d chargers found but integration only supports one. Selecting just one",
+                charger_count,
+            )
+
         charger0_id = str(chargers[0]["charger_id"])
-        # charger0_date_created = chargers[0]["created"]
 
         # Store this in our config
         return {"charger_id": charger0_id}

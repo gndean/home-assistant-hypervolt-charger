@@ -196,9 +196,7 @@ class HypervoltApiClient:
                     await self.send_sync_snapshot_request()
 
                     async for message in websocket:
-                        print(
-                            f"notify_on_hypervolt_sync_push recv: {message}, task: {asyncio.current_task()}"
-                        )
+                        print(f"notify_on_hypervolt_sync_push recv: {message}")
 
                         try:
                             # Example messages:
