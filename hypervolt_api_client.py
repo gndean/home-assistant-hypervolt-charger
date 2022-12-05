@@ -4,6 +4,8 @@ import json
 import logging
 import websockets
 import datetime
+import aiohttp
+import asyncio
 
 from homeassistant.exceptions import HomeAssistantError
 from .hypervolt_device_state import (
@@ -16,7 +18,6 @@ from .hypervolt_device_state import (
     HypervoltScheduleTime,
 )
 
-import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -195,7 +196,9 @@ class HypervoltApiClient:
                     await self.send_sync_snapshot_request()
 
                     async for message in websocket:
-                        print(f"notify_on_hypervolt_sync_push recv {message}")
+                        print(
+                            f"notify_on_hypervolt_sync_push recv: {message}, task: {asyncio.current_task()}"
+                        )
 
                         try:
                             # Example messages:

@@ -54,6 +54,8 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         self.api_session = aiohttp.ClientSession()
         self.data = HypervoltDeviceState(self.api.charger_id)
+        self.notify_on_hypervolt_sync_push_task = None
+        self.notify_on_hypervolt_session_in_progress_push_task = None
 
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
@@ -88,7 +90,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 self.api_session = aiohttp.ClientSession()
                 await self.api.login(self.api_session)
 
-                notify_on_hypervolt_sync_push_task = asyncio.create_task(
+                self.notify_on_hypervolt_sync_push_task = asyncio.create_task(
                     self.api.notify_on_hypervolt_sync_push(
                         self.api_session,
                         self.get_state,
@@ -96,22 +98,30 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     )
                 )
 
-                notify_on_hypervolt_session_in_progress_push_task = asyncio.create_task(
-                    self.api.notify_on_hypervolt_session_in_progress_push(
-                        self.api_session,
-                        self.get_state,
-                        self.hypervolt_sync_on_message_callback,
+                self.notify_on_hypervolt_session_in_progress_push_task = (
+                    asyncio.create_task(
+                        self.api.notify_on_hypervolt_session_in_progress_push(
+                            self.api_session,
+                            self.get_state,
+                            self.hypervolt_sync_on_message_callback,
+                        )
                     )
                 )
 
                 return await self._update_with_fallback(False)
 
-    def _unschedule_refresh(self):
-        super()._unschedule_refresh()
-
+    async def async_unload(self):
         if self.api_session:
-            self.api_session.close()
+            await self.api_session.close()
             self.api_session = None
+
+        if self.notify_on_hypervolt_sync_push_task:
+            was_cancelled = self.notify_on_hypervolt_sync_push_task.cancel()
+            print(f"notify_on_hypervolt_sync_push_task was cancelled :{was_cancelled}")
+
+        if self.notify_on_hypervolt_session_in_progress_push_task:
+            was_cancelled = self.notify_on_hypervolt_session_in_progress_push_task.cancel()
+            print(f"notify_on_hypervolt_session_in_progress_push_task was cancelled :{was_cancelled}")
 
     def get_state(self) -> HypervoltDeviceState:
         """Used by the HypervoltApiClient as a callback to get the current state before modifying"""

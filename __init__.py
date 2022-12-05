@@ -62,7 +62,10 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
+
+    await coordinator.async_unload()
 
     return unload_ok
