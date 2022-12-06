@@ -166,7 +166,7 @@ class HypervoltApiClient:
         return state
 
     async def notify_on_hypervolt_sync_push(
-        self, session, get_state, on_message_callback
+        self, session, get_state_callback, on_message_callback
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -212,7 +212,7 @@ class HypervoltApiClient:
                             elif "params" in jmsg:
                                 res_array = jmsg["params"]
 
-                            state = get_state()
+                            state = get_state_callback()
 
                             if res_array:
                                 for item in res_array:
@@ -261,7 +261,7 @@ class HypervoltApiClient:
             _LOGGER.error("notify_on_hypervolt_sync_push error: %s", exc)
 
     async def notify_on_hypervolt_session_in_progress_push(
-        self, session, get_state, on_message_callback
+        self, session, get_state_callback, on_message_callback
     ):
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -276,7 +276,6 @@ class HypervoltApiClient:
             for key, cookie in requests_cookies.items():
                 cookies += f"{cookie.key}={cookie.value};"
 
-            # TODO: Move this into HypervoltApiClient
             async for websocket in websockets.connect(
                 f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
                 extra_headers={"Cookie": cookies},
@@ -297,7 +296,7 @@ class HypervoltApiClient:
                             # {"charging":false,"session":240,"milli_amps":32000,"true_milli_amps":0,"watt_hours":2371,"ccy_spent":34,"carbon_saved_grams":1036,"ct_current":0,"ct_power":0,"voltage":0}
 
                             jmsg = json.loads(message)
-                            state = get_state()
+                            state = get_state_callback()
 
                             # Only update state if properties are present, other leave state as-is
                             if "charging" in jmsg:

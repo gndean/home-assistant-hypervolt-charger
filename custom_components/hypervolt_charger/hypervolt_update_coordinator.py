@@ -46,6 +46,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         return coordinator
 
     def __init__(self, hass: HomeAssistant, api: HypervoltApiClient):
+        _LOGGER.debug("HypervoltUpdateCoordinator init")
         self.api = api
 
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
