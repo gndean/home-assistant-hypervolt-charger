@@ -1,3 +1,5 @@
+![](https://img.shields.io/github/v/release/gndean/home-assistant-hypervolt-charger?include_prereleases)
+
 # home-assistant-hypervolt-charger
 A [Home Assistant](https://www.home-assistant.io/) Custom Component integration for the [Hypervolt electric vehicle (EV) charger](https://hypervolt.co.uk/). This integration replicates functionality of the Hypervolt mobile app and allows actions to be automated and data to be logged within Home Assistant.
 
@@ -9,9 +11,9 @@ A [Home Assistant](https://www.home-assistant.io/) Custom Component integration 
 
 ![](demo.gif)
 
-# ⚠️ Current State ⚠️
+# Current State 
 
-Consider the current state of the integration a beta. If the installation instructions don't make sense to you or you've not installed custom Home Assistant integrations before, this probably isn't for you yet. The integration likely has serious bugs too due to very limited testing. I hope to improve all this will improve over time. 
+⚠️ Consider the current state of the integration a beta. If the installation instructions don't make sense to you or you've not installed custom Home Assistant integrations before, this probably isn't for you yet. The integration likely has serious bugs too due to very limited testing. I hope to improve all this will improve over time. 
 
 # Installation
 
