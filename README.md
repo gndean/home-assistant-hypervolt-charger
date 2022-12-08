@@ -13,7 +13,7 @@ A [Home Assistant](https://www.home-assistant.io/) Custom Component integration 
 
 # Current State 
 
-⚠️ Consider the current state of the integration a beta. If the installation instructions don't make sense to you or you've not installed custom Home Assistant integrations before, this probably isn't for you yet. The integration likely has serious bugs too due to very limited testing. I hope to improve all this will improve over time. 
+⚠️ Consider the current state of the integration a beta. If the installation instructions don't make sense to you or you've not installed custom Home Assistant integrations before, this probably isn't for you yet. The integration likely has serious bugs too due to very limited testing. I hope all this will improve over time. 
 
 # Installation
 
