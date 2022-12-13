@@ -137,6 +137,12 @@ class HypervoltApiClient:
                 else:
                     state.activation_mode = HypervoltActivationMode.PLUG_AND_CHARGE
 
+                if jres["type"]:
+                    state.schedule_type = jres["type"]
+
+                if jres["tz"]:
+                    state.schedule_tz = jres["tz"]
+
                 state.schedule_intervals = []
                 for interval in jres["intervals"]:
                     start = interval[0]
@@ -423,8 +429,12 @@ class HypervoltApiClient:
         session: aiohttp.ClientSession,
         activation_mode: HypervoltActivationMode,
         schedule_intervals,
+        schedule_type,
+        schedule_tz,
     ) -> HypervoltDeviceState:
         """Use API to update the state. Raise exception on error"""
+        """schedule_type and schedule_tz should have been obtained via by getting the schedule first"""
+        """I've only seen type of: "restricted" so not sure what other values are valid"""
 
         schedule_intervals_to_push = []
         for schedule_interval in schedule_intervals:
@@ -443,9 +453,10 @@ class HypervoltApiClient:
                 ]
             )
 
+        # Use defaults for type and tz if not passed-in
         schedule_data = {
-            "type": "restricted",
-            "tz": "Europe/London",
+            "type": schedule_type if schedule_type else "restricted",
+            "tz": schedule_tz if schedule_tz else "Europe/London",
             "enabled": activation_mode == HypervoltActivationMode.SCHEDULE,
             "intervals": schedule_intervals_to_push,
         }
