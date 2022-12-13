@@ -12,10 +12,6 @@ A [Home Assistant](https://www.home-assistant.io/) Custom Component integration 
 
 ![](demo.gif)
 
-# Current State
-
-⚠️ Consider the current state of the integration a beta. If the installation instructions don't make sense to you or you've not installed custom Home Assistant integrations before, this probably isn't for you yet. The integration likely has serious bugs too due to very limited testing. I hope all this will improve over time.
-
 # Installation
 
 Copy contents of custom_components folder to your home-assistant config/custom_components folder or install through HACS. After reboot of Home-Assistant, this integration can be configured through the integration setup UI.
@@ -52,10 +48,8 @@ The integration is intended to match the features of the iOS and Android apps. I
 - Only tested with a Hypervolt Home 2.0 charge point
 - Only one charger per account supported. If you have more than one, only the first will be found
 - Log in has to be via via email address and password. Google or Apple login not supported
-- Spend is not calculated
 - The charger name is not supported. The Device name in Home Assistant will be your charger's serial
 - English language only
 - Schedule _times_ cannot be read or set, only the Schedule _mode_ can be changed. I think we probably need [this](https://github.com/home-assistant/core/pull/81943) feature within Home Assistant, to allow integrations to use DateTime fields, before controlling the schedule is feasible. Unless you know better? 😉\
   ℹ️ You can of course now use Home Assistant to control starting and stopping your charger instead of relying on the Hypervolt schedule
 - LED modes are not supported
-- Installation of this integration is very basic. No HACS metadata. No icon
