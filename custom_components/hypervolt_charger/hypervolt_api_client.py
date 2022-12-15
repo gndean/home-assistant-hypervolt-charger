@@ -5,7 +5,6 @@ import logging
 import websockets
 import datetime
 import aiohttp
-import asyncio
 
 from homeassistant.exceptions import HomeAssistantError
 from .hypervolt_device_state import (
@@ -58,10 +57,12 @@ class HypervoltApiClient:
                     if response.status == 200:
                         login_form_url = response.url
                         state = login_form_url.query["state"]
-                        login_form_data = f"state={state}&username={self.username}&password={self.password}&action=default"
-                        session.headers.update(
-                            {"content-type": "application/x-www-form-urlencoded"}
-                        )
+                        login_form_data = {
+                            "state": state,
+                            "username": self.username,
+                            "password": self.password,
+                            "action": "default",
+                        }
                         async with session.post(
                             login_form_url,
                             headers=session.headers,
