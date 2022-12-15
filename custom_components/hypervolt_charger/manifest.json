@@ -1,11 +1,11 @@
 {
   "domain": "hypervolt_charger",
   "name": "Hypervolt Charger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "integration_type": "device",
   "config_flow": true,
-  "documentation": "https://github.com/gndean/hypervolt_charger",
-  "issue_tracker": "https://github.com/gndean/hypervolt_charger/issues",
+  "documentation": "https://github.com/gndean/home-assistant-hypervolt-charger",
+  "issue_tracker": "https://github.com/gndean/home-assistant-hypervolt-charger/issues",
   "requirements": [
     "websockets==10.4"
   ],
