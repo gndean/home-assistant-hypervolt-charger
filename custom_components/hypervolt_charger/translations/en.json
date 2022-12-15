@@ -6,6 +6,7 @@
         "error": {
             "cannot_connect": "Failed to connect",
             "invalid_auth": "Authentication failure",
+            "no_chargers_found": "No chargers found within account",
             "unknown": "Unexpected error"
         },
         "step": {

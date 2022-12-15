@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.exceptions import HomeAssistantError
 
 from .hypervolt_api_client import HypervoltApiClient, InvalidAuth, CannotConnect
 from .const import DOMAIN, CONF_PASSWORD, CONF_USERNAME
@@ -22,6 +23,10 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): str,
     }
 )
+
+
+class NoChargersFound(HomeAssistantError):
+    """Error to indicate no chargers found within account."""
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
@@ -39,6 +44,9 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         # TODO handle more than one charger
         # Using multi-step config flow? https://developers.home-assistant.io/docs/data_entry_flow_index/#multi-step-flows
         charger_count = len(chargers)
+        if charger_count == 0:
+            raise NoChargersFound
+
         if charger_count > 1:
             _LOGGER.warning(
                 "%d chargers found but integration only supports one. Selecting just one",
@@ -73,6 +81,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
+        except NoChargersFound:
+            errors["base"] = "no_chargers_found"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
