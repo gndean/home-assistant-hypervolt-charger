@@ -50,7 +50,7 @@ class HypervoltApiClient:
 
                 login_base_url = json.loads(await response.text())["login"]
 
-                _LOGGER.info("Loading URL: %s", login_base_url)
+                _LOGGER.info("Login loading URL: %s...", login_base_url.split("?")[0])
 
                 # This will cause a 302 redirect to a new URL that loads a login form
                 async with session.get(login_base_url) as response:

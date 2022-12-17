@@ -1,3 +1,5 @@
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components.switch import SwitchEntity
@@ -8,10 +10,14 @@ from .hypervolt_entity import HypervoltEntity
 from .hypervolt_device_state import HypervoltLockState
 from .const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ) -> None:
+    _LOGGER.debug("Switch async_setup_entry enter")
+
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     switches = [
         HypervoltChargingSwitch(coordinator),

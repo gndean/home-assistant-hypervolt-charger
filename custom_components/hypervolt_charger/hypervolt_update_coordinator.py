@@ -35,9 +35,14 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     async def create_hypervolt_coordinator(
         hass: HomeAssistant, username: str, password: str, charger_id: str
     ) -> "HypervoltUpdateCoordinator":
+        _LOGGER.debug("Create_hypervolt_coordinator enter")
         api = HypervoltApiClient(username, password, charger_id)
+        _LOGGER.debug(
+            f"Create_hypervolt_coordinator HypervoltApiClient created, charger_id: {charger_id}"
+        )
 
         coordinator = HypervoltUpdateCoordinator(hass, api=api)
+        _LOGGER.debug("Create_hypervolt_coordinator HypervoltUpdateCoordinator created")
         await coordinator.async_config_entry_first_refresh()
 
         if not coordinator.last_update_success:

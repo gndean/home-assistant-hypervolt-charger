@@ -1,3 +1,5 @@
+import logging
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -23,10 +25,14 @@ from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
 from .const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
+    _LOGGER.debug("Sensor async_setup_entry enter")
+
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     await coordinator.async_config_entry_first_refresh()

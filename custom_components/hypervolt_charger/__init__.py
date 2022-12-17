@@ -31,6 +31,8 @@ class HypervoltApi:
 
 async def async_setup(hass: HomeAssistant, config) -> bool:
     """Set up hypervolt_charger component"""
+    _LOGGER.debug("Async_setup enter")
+
     hass.data.setdefault(DOMAIN, {})
     return True
 
@@ -38,6 +40,8 @@ async def async_setup(hass: HomeAssistant, config) -> bool:
 async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     """Set up Hypervolt Charger from a config entry."""
     try:
+        _LOGGER.debug("Async_setup_entry enter")
+
         coordinator = await HypervoltUpdateCoordinator.create_hypervolt_coordinator(
             hass,
             config.data.get(CONF_USERNAME),
@@ -47,7 +51,10 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         hass.data[DOMAIN][config.entry_id] = coordinator
 
+        _LOGGER.debug("Async_setup_entry async_forward_entry_setups")
         await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
+        _LOGGER.debug("Async_setup_entry async_forward_entry_setups done")
+
         return True
     except Exception as exc:
         raise ConfigEntryNotReady from exc
@@ -55,6 +62,8 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    _LOGGER.debug("Async_unload_entry enter")
+
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
