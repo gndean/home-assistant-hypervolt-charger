@@ -61,6 +61,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
 
+        _LOGGER.debug(
+            "HypervoltUpdateCoordinator %s, data: %s", str(self), str(self.data)
+        )
+
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
         return self.api
@@ -84,9 +88,20 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 # as a sync will immediately be done within notify_on_hypervolt_sync_push_task
                 await self.api.send_sync_snapshot_request()
 
+            _LOGGER.debug(
+                "HypervoltCoordinator _update_with_fallback, retry = %s, returning state: %s",
+                str(retry),
+                str(state),
+            )
+
             return state
 
-        except Exception:
+        except Exception as exc:
+            _LOGGER.debug(
+                "HypervoltCoordinator _update_with_fallback, retry = %s, exception: %s",
+                str(retry),
+                str(exc),
+            )
             if retry:
                 if self.api_session:
                     await self.api_session.close()
@@ -113,6 +128,13 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 )
 
                 return await self._update_with_fallback(False)
+            else:
+                _LOGGER.debug(
+                    "HypervoltCoordinator _update_with_fallback, retry = %s, returning self.data %s",
+                    str(retry),
+                    str(self.data),
+                )
+                return self.data
 
     async def async_unload(self):
         if self.api_session:

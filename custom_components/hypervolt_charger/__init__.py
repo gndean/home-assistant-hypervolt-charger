@@ -40,7 +40,7 @@ async def async_setup(hass: HomeAssistant, config) -> bool:
 async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     """Set up Hypervolt Charger from a config entry."""
     try:
-        _LOGGER.debug("Async_setup_entry enter")
+        _LOGGER.debug("Async_setup_entry enter, entry_id: %s", config.entry_id)
 
         coordinator = await HypervoltUpdateCoordinator.create_hypervolt_coordinator(
             hass,
@@ -51,7 +51,10 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         hass.data[DOMAIN][config.entry_id] = coordinator
 
-        _LOGGER.debug("Async_setup_entry async_forward_entry_setups")
+        _LOGGER.debug(
+            "Async_setup_entry async_forward_entry_setups, coordinator: %s",
+            str(coordinator),
+        )
         await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
         _LOGGER.debug("Async_setup_entry async_forward_entry_setups done")
 

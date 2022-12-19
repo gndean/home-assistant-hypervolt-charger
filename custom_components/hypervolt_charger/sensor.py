@@ -31,11 +31,11 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    _LOGGER.debug("Sensor async_setup_entry enter")
+    _LOGGER.debug("Sensor async_setup_entry enter, entry_id: %s", entry.entry_id)
 
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    await coordinator.async_config_entry_first_refresh()
+    _LOGGER.debug("Sensor coordinator data: %s", coordinator.data)
 
     sensors = [
         HypervoltSensor(
@@ -50,6 +50,14 @@ async def async_setup_entry(
             "session_watthours",
             device_class=SensorDeviceClass.ENERGY,
             state_class=SensorStateClass.TOTAL,
+            unit_of_measure=UnitOfEnergy.WATT_HOUR,
+        ),
+        HypervoltSensor(
+            coordinator,
+            "Session Energy Total Increasing",
+            "session_watthours",
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
             unit_of_measure=UnitOfEnergy.WATT_HOUR,
         ),
         HypervoltSensor(
@@ -122,7 +130,16 @@ class HypervoltSensor(HypervoltEntity, SensorEntity):
         scale_factor: float = None,
     ):
         """Pass coordinator to CoordinatorEntity."""
+        _LOGGER.debug(
+            "HypervoltSensor __init__ passing coordinator.data onto super: %s",
+            str(coordinator.data),
+        )
         super().__init__(coordinator)
+
+        _LOGGER.debug(
+            "HypervoltSensor __init__ self.coordinator.data: %s", str(coordinator.data)
+        )
+
         # Use sub-obj
         self.hv_name = name
         self.hv_state_property_name = state_property_name
@@ -133,6 +150,10 @@ class HypervoltSensor(HypervoltEntity, SensorEntity):
 
     @property
     def unique_id(self):
+        _LOGGER.debug(
+            "HypervoltSensor unique_id self.coordinator.data: %s",
+            str(self.coordinator.data),
+        )
         return super().unique_id + "_" + self.hv_name.replace(" ", "_")
 
     @property
