@@ -1,4 +1,5 @@
 {
     "name": "Hypervolt Charger",
-    "content_in_root": false
+    "content_in_root": false,
+    "country": "GB"
 }
