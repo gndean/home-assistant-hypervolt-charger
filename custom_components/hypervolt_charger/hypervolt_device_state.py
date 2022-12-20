@@ -66,3 +66,9 @@ class HypervoltDeviceState:
         self.schedule_intervals = None  # Array of HypervoltScheduleInterval
         self.schedule_tz = None
         self.schedule_type = None
+
+        # Not taken directly from the Hypervolt API but instead a calculated field
+        # to be exposed as a strictly TOTAL_INCREASING sensor class to allow
+        # energy calculations via Home Assistant
+        # Resets to 0 when a new session is created else is the max(session_watthours) during the session
+        self.session_watthours_total_increasing = None

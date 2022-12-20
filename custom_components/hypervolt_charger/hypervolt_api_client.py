@@ -304,6 +304,7 @@ class HypervoltApiClient:
 
                             jmsg = json.loads(message)
                             state = get_state_callback()
+                            prev_session_id = state.session_id
 
                             # Only update state if properties are present, other leave state as-is
                             if "charging" in jmsg:
@@ -329,6 +330,32 @@ class HypervoltApiClient:
                                 state.current_session_ct_power = jmsg["ct_power"]
                             if "voltage" in jmsg:
                                 state.current_session_voltage = jmsg["voltage"]
+
+                            # Calculate derived field: session_watthours_total_increasing
+                            if (
+                                not prev_session_id
+                                or not state.session_id
+                                or state.session_id == prev_session_id
+                            ):
+                                # Calculate the max seen session_watthours for this session
+                                # Only do this if we're currently charging. This is to avoid the situation where
+                                # HA restarts while not charging and we calculate a new value that is lower
+                                # than the max we saw last session. Thus, on a restart of HA when not charging
+                                # the value remains Unknown until the next charging session
+                                if state.session_watthours and state.is_charging:
+                                    state.session_watthours_total_increasing = max(
+                                        state.session_watthours_total_increasing
+                                        if state.session_watthours_total_increasing
+                                        else 0,
+                                        state.session_watthours,
+                                    )
+                            else:
+                                _LOGGER.debug(
+                                    "Notify_on_hypervolt_session_in_progress_push new charging session detected"
+                                )
+
+                                # This is a new session, reset the value
+                                state.session_watthours_total_increasing = 0
 
                             on_message_callback(state)
 

@@ -51,7 +51,7 @@ async def async_setup_entry(
         HypervoltSensor(
             coordinator,
             "Session Energy Total Increasing",
-            "session_watthours",
+            "session_watthours_total_increasing",
             device_class=SensorDeviceClass.ENERGY,
             state_class=SensorStateClass.TOTAL_INCREASING,
             unit_of_measure=UnitOfEnergy.WATT_HOUR,
