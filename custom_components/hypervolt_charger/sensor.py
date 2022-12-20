@@ -31,11 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    _LOGGER.debug("Sensor async_setup_entry enter, entry_id: %s", entry.entry_id)
-
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-
-    _LOGGER.debug("Sensor coordinator data: %s", coordinator.data)
 
     sensors = [
         HypervoltSensor(
@@ -130,15 +126,7 @@ class HypervoltSensor(HypervoltEntity, SensorEntity):
         scale_factor: float = None,
     ):
         """Pass coordinator to CoordinatorEntity."""
-        _LOGGER.debug(
-            "HypervoltSensor __init__ passing coordinator.data onto super: %s",
-            str(coordinator.data),
-        )
         super().__init__(coordinator)
-
-        _LOGGER.debug(
-            "HypervoltSensor __init__ self.coordinator.data: %s", str(coordinator.data)
-        )
 
         # Use sub-obj
         self.hv_name = name
@@ -150,10 +138,6 @@ class HypervoltSensor(HypervoltEntity, SensorEntity):
 
     @property
     def unique_id(self):
-        _LOGGER.debug(
-            "HypervoltSensor unique_id self.coordinator.data: %s",
-            str(self.coordinator.data),
-        )
         return super().unique_id + "_" + self.hv_name.replace(" ", "_")
 
     @property

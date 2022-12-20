@@ -51,10 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         hass.data[DOMAIN][config.entry_id] = coordinator
 
-        _LOGGER.debug(
-            "Async_setup_entry async_forward_entry_setups, coordinator: %s",
-            str(coordinator),
-        )
+        _LOGGER.debug("Async_setup_entry async_forward_entry_setups")
         await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
         _LOGGER.debug("Async_setup_entry async_forward_entry_setups done")
 

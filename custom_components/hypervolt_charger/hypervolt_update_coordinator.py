@@ -61,10 +61,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
 
-        _LOGGER.debug(
-            "HypervoltUpdateCoordinator %s, data: %s", str(self), str(self.data)
-        )
-
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
         return self.api

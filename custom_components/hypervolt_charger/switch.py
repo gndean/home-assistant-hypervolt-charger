@@ -20,8 +20,6 @@ async def async_setup_entry(
 
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    _LOGGER.debug("Switch coordinator data: %s", coordinator.data)
-
     switches = [
         HypervoltChargingSwitch(coordinator),
         HypervoltLockStateSwitch(coordinator),
