@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
+from .utils import get_version_from_manifest
 
 # There should be a file for each of the declared platforms e.g. sensor.py
 PLATFORMS: list[Platform] = [
@@ -22,14 +23,7 @@ PLATFORMS: list[Platform] = [
 _LOGGER = logging.getLogger(__name__)
 
 
-class HypervoltApi:
-    def __init__(self, email_address, password, charger_id):
-        self.email_address = email_address
-        self.password = password
-        self.charger_id = charger_id
-
-
-async def async_setup(hass: HomeAssistant, config) -> bool:
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up hypervolt_charger component"""
     _LOGGER.debug("Async_setup enter")
 
@@ -44,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         coordinator = await HypervoltUpdateCoordinator.create_hypervolt_coordinator(
             hass,
+            get_version_from_manifest(),
             config.data.get(CONF_USERNAME),
             config.data.get(CONF_PASSWORD),
             config.data.get(CONF_CHARGER_ID),

@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
+from .utils import get_version_from_manifest
 from .hypervolt_api_client import HypervoltApiClient, InvalidAuth, CannotConnect
 from .const import DOMAIN, CONF_PASSWORD, CONF_USERNAME
 
@@ -35,7 +36,9 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
 
-    api = HypervoltApiClient(data[CONF_USERNAME], data[CONF_PASSWORD])
+    api = HypervoltApiClient(
+        get_version_from_manifest(), data[CONF_USERNAME], data[CONF_PASSWORD]
+    )
     async with aiohttp.ClientSession() as session:
         await api.login(session)
         chargers = await api.get_chargers(session)
