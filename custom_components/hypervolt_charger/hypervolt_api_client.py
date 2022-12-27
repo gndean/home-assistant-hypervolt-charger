@@ -69,11 +69,24 @@ class HypervoltApiClient:
                         }
                         async with session.post(
                             login_form_url,
-                            # headers=session.headers,
                             data=login_form_data,
                         ) as response:
                             if response.status == 200:
                                 _LOGGER.info("HypervoltApiClient logged in!")
+
+                                # Use session cookie as authorization token
+                                cookies = session.cookie_jar.filter_cookies(
+                                    "https://api.hypervolt.co.uk"
+                                )
+
+                                if "session" in cookies:
+                                    session.headers[
+                                        "authorization"
+                                    ] = f'Bearer {cookies["session"].value}'
+                                else:
+                                    _LOGGER.warning(
+                                        "Unable to get session token. Auth may fail"
+                                    )
                                 return True
 
                             elif response.status >= 400 and response.status < 500:
