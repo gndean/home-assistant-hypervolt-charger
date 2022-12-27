@@ -126,19 +126,19 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 await self.api.login(self.api_session)
 
                 self.notify_on_hypervolt_sync_push_task = asyncio.create_task(
-                    self.api.notify_on_hypervolt_sync_push(
+                    self.api.notify_on_hypervolt_sync_websocket(
                         self.api_session,
                         self.get_state,
-                        self.hypervolt_sync_on_message_callback,
+                        self.on_updated_state_callback,
                     )
                 )
 
                 self.notify_on_hypervolt_session_in_progress_push_task = (
                     asyncio.create_task(
-                        self.api.notify_on_hypervolt_session_in_progress_push(
+                        self.api.notify_on_hypervolt_session_in_progress_websocket(
                             self.api_session,
                             self.get_state,
-                            self.hypervolt_sync_on_message_callback,
+                            self.on_updated_state_callback,
                         )
                     )
                 )
@@ -176,6 +176,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         """Used by the HypervoltApiClient as a callback to get the current state before modifying"""
         return self.data
 
-    def hypervolt_sync_on_message_callback(self, state: HypervoltDeviceState):
-        """A callback from the HypervoltApiClient when a potential state change has been pushed to the /sync web socket"""
+    def on_updated_state_callback(self, state: HypervoltDeviceState):
+        """A callback from the HypervoltApiClient when a potential state change has been pushed to a web socket"""
         self.async_set_updated_data(state)

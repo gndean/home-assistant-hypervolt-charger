@@ -176,12 +176,94 @@ class HypervoltApiClient:
 
         return state
 
-    async def notify_on_hypervolt_sync_push(
-        self, session, get_state_callback, on_message_callback
+    async def notify_on_hypervolt_sync_websocket(
+        self, session, get_state_callback, on_updated_state_callback
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
-        _LOGGER.debug("notify_on_hypervolt_sync_push enter")
+        await self.notify_on_websocket(
+            "notify_on_websocket sync",
+            f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
+            session,
+            get_state_callback,
+            self.on_sync_websocket_connected_callback,
+            self.on_sync_websocket_on_message_callback,
+            on_updated_state_callback,
+            self.on_sync_websocket_closed_callback,
+        )
+
+    async def on_sync_websocket_on_message_callback(
+        self, message, get_state_callback, on_updated_state_callback
+    ):
+        """Handle messages coming back from the /sync websocket"""
+        try:
+            # Example messages:
+            # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
+            # or
+            # {"method":"sync.apply","params":[{"brightness":0.25}]}
+            # or
+            # {"jsonrpc":"2.0","id":"1","error":{"code":409,"error":"Concurrent modifications invalidated this request","data":null}}
+            jmsg = json.loads(message)
+            res_array = None
+            if "result" in jmsg:
+                res_array = jmsg["result"]
+            elif "params" in jmsg:
+                res_array = jmsg["params"]
+
+            state = get_state_callback()
+
+            if res_array:
+                for item in res_array:
+                    # Only update state if properties are present, other leave state as-is
+                    if "brightness" in item:
+                        state.led_brightness = item["brightness"]
+                    if "lock_state" in item:
+                        state.lock_state = HypervoltLockState[
+                            item["lock_state"].upper()
+                        ]
+                    if "max_current" in item:
+                        state.max_current_milliamps = item["max_current"]
+                    if "solar_mode" in item:
+                        state.charge_mode = HypervoltChargeMode[
+                            item["solar_mode"].upper()
+                        ]
+                    if "release_state" in item:
+                        state.release_state = HypervoltReleaseState[
+                            item["release_state"].upper()
+                        ]
+                    if "lock_state" in item:
+                        state.release_state = HypervoltLockState[
+                            item["lock_state"].upper()
+                        ]
+                on_updated_state_callback(state)
+            else:
+                _LOGGER.warning(
+                    "notify_on_hypervolt_sync_push unknown message structure: %s",
+                    message,
+                )
+        except Exception as exc:
+            _LOGGER.warning(f"Websocket_sync message error ${exc}")
+            raise exc
+
+    async def on_sync_websocket_connected_callback(self):
+        # Get a snapshot now first
+        await self.send_sync_snapshot_request()
+
+    async def on_sync_websocket_closed_callback(self):
+        self.websocket_sync = None
+
+    async def notify_on_websocket(
+        self,
+        log_prefix,
+        url,
+        session,
+        get_state_callback,
+        on_connected_callback,
+        on_message_callback,
+        on_updated_state_callback,
+        on_closed_callback,
+    ):
+        _LOGGER.debug(f"{log_prefix} enter")
 
         # If the connection is closed, we retry with an exponential back-off delay
         backoff_seconds = 3
@@ -196,8 +278,7 @@ class HypervoltApiClient:
                 cookies += f"{cookie.key}={cookie.value};"
 
             async for websocket in websockets.connect(
-                # "wss://httpbin.org/status/502",
-                f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
+                url,
                 extra_headers={"Cookie": cookies},
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
@@ -206,85 +287,41 @@ class HypervoltApiClient:
                 try:
                     self.websocket_sync = websocket
 
-                    # Get a snapshot now first
-                    await self.send_sync_snapshot_request()
+                    if on_connected_callback:
+                        await on_connected_callback()
 
                     # From: https://websockets.readthedocs.io/en/stable/reference/client.html#websockets.client.connect,
                     # the iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away).
                     # It raises a ConnectionClosedError when the connection is closed with any other code.
                     async for message in websocket:
-                        _LOGGER.debug(f"notify_on_hypervolt_sync_push recv: {message}")
+                        _LOGGER.debug(f"{log_prefix} recv: {message}")
 
-                        try:
-                            # Example messages:
-                            # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
-                            # or
-                            # {"method":"sync.apply","params":[{"brightness":0.25}]}
-                            # or
-                            # {"jsonrpc":"2.0","id":"1","error":{"code":409,"error":"Concurrent modifications invalidated this request","data":null}}
-                            jmsg = json.loads(message)
-                            res_array = None
-                            if "result" in jmsg:
-                                res_array = jmsg["result"]
-                            elif "params" in jmsg:
-                                res_array = jmsg["params"]
+                        # Pass message onto handler, also passing the callback to inform the caller of the updated state
+                        if on_message_callback:
+                            await on_message_callback(
+                                message, get_state_callback, on_updated_state_callback
+                            )
 
-                            state = get_state_callback()
+                        # If we get this far, we assume our connection is good and we can reset the back-off
+                        backoff_seconds = 3
 
-                            if res_array:
-                                for item in res_array:
-                                    # Only update state if properties are present, other leave state as-is
-                                    if "brightness" in item:
-                                        state.led_brightness = item["brightness"]
-                                    if "lock_state" in item:
-                                        state.lock_state = HypervoltLockState[
-                                            item["lock_state"].upper()
-                                        ]
-                                    if "max_current" in item:
-                                        state.max_current_milliamps = item[
-                                            "max_current"
-                                        ]
-                                    if "solar_mode" in item:
-                                        state.charge_mode = HypervoltChargeMode[
-                                            item["solar_mode"].upper()
-                                        ]
-                                    if "release_state" in item:
-                                        state.release_state = HypervoltReleaseState[
-                                            item["release_state"].upper()
-                                        ]
-                                    if "lock_state" in item:
-                                        state.release_state = HypervoltLockState[
-                                            item["lock_state"].upper()
-                                        ]
-                                on_message_callback(state)
-
-                                # If we get this far, we assume our connection is good and we can reset the back-off
-                                backoff_seconds = 3
-                            else:
-                                _LOGGER.warning(
-                                    "notify_on_hypervolt_sync_push unknown message structure: %s",
-                                    message,
-                                )
-                        except Exception as exc:
-                            _LOGGER.warning(f"Websocket_sync message error ${exc}")
-                            raise exc
-
-                    _LOGGER.warning("Websocket_sync iterator exited. Socket closed")
+                    _LOGGER.warning(f"{log_prefix} iterator exited. Socket closed")
 
                 except websockets.ConnectionClosed:
-                    _LOGGER.warning("Websocket_sync ConnectionClosed")
+                    _LOGGER.warning(f"{log_prefix} ConnectionClosed")
                     continue
 
                 except Exception as exc:
-                    _LOGGER.warning(f"Websocket_sync exception ${exc}")
+                    _LOGGER.warning(f"{log_prefix} exception ${exc}")
                     continue
 
                 finally:
-                    self.websocket_sync = None
+                    if on_closed_callback:
+                        await on_closed_callback()
 
                     # Apply back off here
                     _LOGGER.debug(
-                        f"Websocket_sync backing off {backoff_seconds} seconds before reconnection attempt"
+                        f"{log_prefix} backing off {backoff_seconds} seconds before reconnection attempt"
                     )
                     await asyncio.sleep(backoff_seconds)
 
@@ -292,11 +329,11 @@ class HypervoltApiClient:
                     backoff_seconds = min(60, int(backoff_seconds * 1.7))
 
         except Exception as exc:
-            _LOGGER.error("notify_on_hypervolt_sync_push error: %s", exc)
+            _LOGGER.error(f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
         finally:
-            _LOGGER.debug(f"notify_on_hypervolt_sync_push finally")
+            _LOGGER.debug(f"{log_prefix} exit")
 
-    async def notify_on_hypervolt_session_in_progress_push(
+    async def notify_on_hypervolt_session_in_progress_websocket(
         self, session, get_state_callback, on_message_callback
     ):
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
