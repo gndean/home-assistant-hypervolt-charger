@@ -5,6 +5,7 @@ import logging
 import websockets
 import datetime
 import aiohttp
+import asyncio
 
 from homeassistant.exceptions import HomeAssistantError
 from .hypervolt_device_state import (
@@ -30,8 +31,9 @@ class InvalidAuth(HomeAssistantError):
 
 
 class HypervoltApiClient:
-    def __init__(self, username, password, charger_id=None):
+    def __init__(self, version, username, password, charger_id=None):
         """Set charger_id if known, or None during config, to allow chargers to be enumerated after login()"""
+        self.version = version
         self.username = username
         self.password = password
         self.charger_id = charger_id
@@ -177,7 +179,10 @@ class HypervoltApiClient:
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
-        _LOGGER.debug(f"notify_on_hypervolt_sync_push enter")
+        _LOGGER.debug("notify_on_hypervolt_sync_push enter")
+
+        # If the connection is closed, we retry with an exponential back-off delay
+        backoff_seconds = 3
 
         try:
             # Move cookies from login session to websocket
@@ -188,20 +193,23 @@ class HypervoltApiClient:
             for key, cookie in requests_cookies.items():
                 cookies += f"{cookie.key}={cookie.value};"
 
-            # TODO: Move this into HypervoltApiClient
             async for websocket in websockets.connect(
+                # "wss://httpbin.org/status/502",
                 f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
                 extra_headers={"Cookie": cookies},
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
+                user_agent_header=self.get_user_agent(),
             ):
                 try:
                     self.websocket_sync = websocket
-                    _LOGGER.info("Websocket_sync connected")
 
                     # Get a snapshot now first
                     await self.send_sync_snapshot_request()
 
+                    # From: https://websockets.readthedocs.io/en/stable/reference/client.html#websockets.client.connect,
+                    # the iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away).
+                    # It raises a ConnectionClosedError when the connection is closed with any other code.
                     async for message in websocket:
                         _LOGGER.debug(f"notify_on_hypervolt_sync_push recv: {message}")
 
@@ -247,25 +255,44 @@ class HypervoltApiClient:
                                             item["lock_state"].upper()
                                         ]
                                 on_message_callback(state)
+
+                                # If we get this far, we assume our connection is good and we can reset the back-off
+                                backoff_seconds = 3
                             else:
                                 _LOGGER.warning(
                                     "notify_on_hypervolt_sync_push unknown message structure: %s",
                                     message,
                                 )
-
                         except Exception as exc:
-                            _LOGGER.error(
-                                "notify_on_hypervolt_sync_push error: %s",
-                                exc,
-                            )
+                            _LOGGER.warning(f"Websocket_sync message error ${exc}")
+                            raise exc
+
+                    _LOGGER.warning("Websocket_sync iterator exited. Socket closed")
 
                 except websockets.ConnectionClosed:
                     self.websocket_sync = None
-                    _LOGGER.info("Websocket_sync closed")
+                    _LOGGER.warning("Websocket_sync ConnectionClosed")
                     continue
+
+                except Exception as exc:
+                    self.websocket_sync = None
+                    _LOGGER.warning(f"Websocket_sync exception ${exc}")
+                    continue
+
+                finally:
+                    # Apply back off here
+                    _LOGGER.debug(
+                        f"Websocket_sync backing off {backoff_seconds} seconds before reconnection attempt"
+                    )
+                    await asyncio.sleep(backoff_seconds)
+
+                    # Increase back-off for next time, up to a max of 1 minute
+                    backoff_seconds = min(60, int(backoff_seconds * 1.7))
 
         except Exception as exc:
             _LOGGER.error("notify_on_hypervolt_sync_push error: %s", exc)
+        finally:
+            _LOGGER.debug(f"notify_on_hypervolt_sync_push finally")
 
     async def notify_on_hypervolt_session_in_progress_push(
         self, session, get_state_callback, on_message_callback
@@ -288,6 +315,7 @@ class HypervoltApiClient:
                 extra_headers={"Cookie": cookies},
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
+                user_agent_header=self.get_user_agent(),
             ):
                 try:
                     self.websocket_session_in_progress = websocket
@@ -506,3 +534,6 @@ class HypervoltApiClient:
                     response.status,
                 )
                 raise CannotConnect
+
+    def get_user_agent(self) -> str:
+        return f"home-assistant-hypervolt-charger/{self.version}"
