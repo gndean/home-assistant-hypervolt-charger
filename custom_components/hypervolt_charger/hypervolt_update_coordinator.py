@@ -2,25 +2,23 @@ import asyncio
 import logging
 import async_timeout
 import aiohttp
+import os
 import json
-import websockets
 
 from datetime import timedelta
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.helpers.update_coordinator import UpdateFailed
-
-from .hypervolt_api_client import HypervoltApiClient
-from .hypervolt_device_state import (
-    HypervoltDeviceState,
-    HypervoltLockState,
-    HypervoltChargeMode,
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
+    ConfigEntryAuthFailed,
 )
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
+from .hypervolt_api_client import HypervoltApiClient, InvalidAuth
+from .hypervolt_device_state import (
+    HypervoltDeviceState,
+)
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,10 +31,15 @@ SCAN_INTERVAL = timedelta(minutes=5)
 class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     @staticmethod
     async def create_hypervolt_coordinator(
-        hass: HomeAssistant, username: str, password: str, charger_id: str
+        hass: HomeAssistant,
+        version: str,
+        username: str,
+        password: str,
+        charger_id: str,
     ) -> "HypervoltUpdateCoordinator":
         _LOGGER.debug("Create_hypervolt_coordinator enter")
-        api = HypervoltApiClient(username, password, charger_id)
+
+        api = HypervoltApiClient(version, username, password, charger_id)
         _LOGGER.debug(
             f"Create_hypervolt_coordinator HypervoltApiClient created, charger_id: {charger_id}"
         )
@@ -50,7 +53,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         return coordinator
 
-    def __init__(self, hass: HomeAssistant, api: HypervoltApiClient):
+    def __init__(self, hass: HomeAssistant, api: HypervoltApiClient) -> None:
         _LOGGER.debug("HypervoltUpdateCoordinator init")
         self.api = api
 
@@ -69,15 +72,32 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         try:
             async with async_timeout.timeout(10):
                 return await self._update_with_fallback()
-        except Exception as exception:
-            raise UpdateFailed() from exception
+        except InvalidAuth as exc:
+            raise ConfigEntryAuthFailed() from exc
+        except asyncio.TimeoutError as exc:
+            # This is handled by the UpdateCoordinator base class
+            raise exc
+        except Exception as exc:
+            raise UpdateFailed() from exc
 
     async def _update_with_fallback(self, retry=True) -> HypervoltDeviceState:
         try:
             _LOGGER.debug(f"Hypervolt _update_with_fallback, retry = {retry}")
-            state = await self.api.update_state_from_schedule(
-                self.api_session, self.data
-            )
+
+            # If we have an active session, try and use that now
+            # If that fails, we'll re-login
+            if not self.api_session.closed and len(
+                self.api_session.cookie_jar.filter_cookies(
+                    "https://api.hypervolt.co.uk"
+                )
+            ):
+                _LOGGER.debug("Active session found, updating state")
+                state = await self.api.update_state_from_schedule(
+                    self.api_session, self.data
+                )
+            else:
+                _LOGGER.debug("No active session")
+                raise InvalidAuth
 
             if retry:
                 # No need to grab a snapshot if we've just created the sync websock
@@ -130,6 +150,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     str(retry),
                     str(self.data),
                 )
+
                 return self.data
 
     async def async_unload(self):
