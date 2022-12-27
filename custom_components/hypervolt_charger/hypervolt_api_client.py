@@ -48,6 +48,8 @@ class HypervoltApiClient:
         Raises InvalidAuth or CannotConnect on failure"""
 
         try:
+            session.headers["User-Agent"] = self.get_user_agent()
+
             async with session.get("https://api.hypervolt.co.uk/login-url") as response:
 
                 login_base_url = json.loads(await response.text())["login"]
@@ -67,7 +69,7 @@ class HypervoltApiClient:
                         }
                         async with session.post(
                             login_form_url,
-                            headers=session.headers,
+                            # headers=session.headers,
                             data=login_form_data,
                         ) as response:
                             if response.status == 200:
@@ -270,16 +272,16 @@ class HypervoltApiClient:
                     _LOGGER.warning("Websocket_sync iterator exited. Socket closed")
 
                 except websockets.ConnectionClosed:
-                    self.websocket_sync = None
                     _LOGGER.warning("Websocket_sync ConnectionClosed")
                     continue
 
                 except Exception as exc:
-                    self.websocket_sync = None
                     _LOGGER.warning(f"Websocket_sync exception ${exc}")
                     continue
 
                 finally:
+                    self.websocket_sync = None
+
                     # Apply back off here
                     _LOGGER.debug(
                         f"Websocket_sync backing off {backoff_seconds} seconds before reconnection attempt"
