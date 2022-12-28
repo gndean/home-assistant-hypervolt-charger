@@ -83,6 +83,8 @@ _Only available during a charging session_, these represent the voltage and curr
 
 _Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
 
+ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
+
 ## 👁 Hypervolt Session Carbon Saved, Hypervolt Session ID, Hypervolt Session Energy (Sensors)
 
 Are fields related to the current, or most recent charging session.
