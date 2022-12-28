@@ -66,15 +66,6 @@ async def async_setup_entry(
         ),
         HypervoltSensor(
             coordinator,
-            "Session Money Spent",
-            "session_currency_spent",
-            device_class=SensorDeviceClass.MONETARY,
-            state_class=SensorStateClass.MEASUREMENT,
-            unit_of_measure="£",
-            scale_factor=0.01,
-        ),
-        HypervoltSensor(
-            coordinator,
             "Charger Current",
             "current_session_current_milliamps",
             device_class=SensorDeviceClass.CURRENT,
