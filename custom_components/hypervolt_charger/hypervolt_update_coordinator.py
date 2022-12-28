@@ -2,8 +2,6 @@ import asyncio
 import logging
 import async_timeout
 import aiohttp
-import os
-import json
 
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
@@ -82,7 +80,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
     async def _update_with_fallback(self, retry=True) -> HypervoltDeviceState:
         try:
-            _LOGGER.debug(f"Hypervolt _update_with_fallback, retry = {retry}")
+            _LOGGER.debug(f"Hypervolt _update_with_fallback enter, retry = {retry}")
 
             # If we have an active session, try and use that now
             # If that fails, we'll re-login
@@ -105,18 +103,14 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 await self.api.send_sync_snapshot_request()
 
             _LOGGER.debug(
-                "HypervoltCoordinator _update_with_fallback, retry = %s, returning state: %s",
-                str(retry),
-                str(state),
+                f"HypervoltCoordinator _update_with_fallback exit, retry = {retry}"
             )
 
             return state
 
         except Exception as exc:
             _LOGGER.debug(
-                "HypervoltCoordinator _update_with_fallback, retry = %s, exception: %s",
-                str(retry),
-                str(exc),
+                f"HypervoltCoordinator _update_with_fallback, retry = {retry}, exception: {exc}"
             )
             if retry:
                 if self.api_session:
@@ -129,7 +123,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     self.api.notify_on_hypervolt_sync_websocket(
                         self.api_session,
                         self.get_state,
-                        self.on_updated_state_callback,
+                        self.on_state_updated,
                     )
                 )
 
@@ -138,7 +132,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                         self.api.notify_on_hypervolt_session_in_progress_websocket(
                             self.api_session,
                             self.get_state,
-                            self.on_updated_state_callback,
+                            self.on_state_updated,
                         )
                     )
                 )
@@ -146,9 +140,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 return await self._update_with_fallback(False)
             else:
                 _LOGGER.debug(
-                    "HypervoltCoordinator _update_with_fallback, retry = %s, returning self.data %s",
-                    str(retry),
-                    str(self.data),
+                    f"HypervoltCoordinator _update_with_fallback, retry = {retry}, returning self.data"
                 )
 
                 return self.data
@@ -176,6 +168,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         """Used by the HypervoltApiClient as a callback to get the current state before modifying"""
         return self.data
 
-    def on_updated_state_callback(self, state: HypervoltDeviceState):
+    def on_state_updated(self, state: HypervoltDeviceState):
         """A callback from the HypervoltApiClient when a potential state change has been pushed to a web socket"""
         self.async_set_updated_data(state)

@@ -54,7 +54,7 @@ class HypervoltApiClient:
 
                 login_base_url = json.loads(await response.text())["login"]
 
-                _LOGGER.info("Login loading URL: %s...", login_base_url.split("?")[0])
+                _LOGGER.info("Login loading URL: %s", login_base_url.split("?")[0])
 
                 # This will cause a 302 redirect to a new URL that loads a login form
                 async with session.get(login_base_url) as response:
@@ -190,7 +190,7 @@ class HypervoltApiClient:
         return state
 
     async def notify_on_hypervolt_sync_websocket(
-        self, session, get_state_callback, on_updated_state_callback
+        self, session, get_state_callback, on_state_updated_callback
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -199,14 +199,14 @@ class HypervoltApiClient:
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
             session,
             get_state_callback,
-            self.on_sync_websocket_connected_callback,
-            self.on_sync_websocket_message_callback,
-            on_updated_state_callback,
-            self.on_sync_websocket_closed_callback,
+            self.on_sync_websocket_connected,
+            self.on_sync_websocket_message,
+            on_state_updated_callback,
+            self.on_sync_websocket_closed,
         )
 
-    async def on_sync_websocket_message_callback(
-        self, message, get_state_callback, on_updated_state_callback
+    async def on_sync_websocket_message(
+        self, message, get_state_callback, on_state_updated_callback
     ):
         """Handle messages coming back from the /sync websocket"""
         try:
@@ -248,22 +248,23 @@ class HypervoltApiClient:
                         state.release_state = HypervoltLockState[
                             item["lock_state"].upper()
                         ]
-                if on_updated_state_callback:
-                    on_updated_state_callback(state)
+                if on_state_updated_callback:
+                    on_state_updated_callback(state)
             else:
                 _LOGGER.warning(
-                    "on_sync_websocket_message_callback unknown message structure: %s",
+                    "On_sync_websocket_message_callback unknown message structure: %s",
                     message,
                 )
         except Exception as exc:
-            _LOGGER.warning(f"on_sync_websocket_message_callback error ${exc}")
+            _LOGGER.warning(f"On_sync_websocket_message_callback error ${exc}")
 
-    async def on_sync_websocket_connected_callback(self, websocket):
+    async def on_sync_websocket_connected(self, websocket):
         self.websocket_sync = websocket
         # Get a snapshot now first
         await self.send_sync_snapshot_request()
 
-    async def on_sync_websocket_closed_callback(self):
+    async def on_sync_websocket_closed(self):
+        _LOGGER.debug("on_sync_websocket_closed")
         self.websocket_sync = None
 
     async def notify_on_websocket(
@@ -274,11 +275,11 @@ class HypervoltApiClient:
         get_state_callback,
         on_connected_callback,
         on_message_callback,
-        on_updated_state_callback,
+        on_state_updated_callback,
         on_closed_callback,
     ):
-        """Open websocket to url and block forever. Handle reconnections and back-off"""
-        """Used as a common function for multiple websocket endpoints"""
+        """Open websocket to url and block forever. Handle reconnections and back-off
+        Used as a common function for multiple websocket endpoints"""
         _LOGGER.debug(f"{log_prefix} enter")
 
         # If the connection is closed, we retry with an exponential back-off delay
@@ -315,7 +316,7 @@ class HypervoltApiClient:
                         # Pass message onto handler, also passing the callback to inform the caller of the updated state
                         if on_message_callback:
                             await on_message_callback(
-                                message, get_state_callback, on_updated_state_callback
+                                message, get_state_callback, on_state_updated_callback
                             )
 
                         # If we get this far, we assume our connection is good and we can reset the back-off
@@ -350,7 +351,7 @@ class HypervoltApiClient:
             _LOGGER.debug(f"{log_prefix} exit")
 
     async def notify_on_hypervolt_session_in_progress_websocket(
-        self, session, get_state_callback, on_updated_state_callback
+        self, session, get_state_callback, on_state_updated_callback
     ):
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -359,17 +360,17 @@ class HypervoltApiClient:
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
             session,
             get_state_callback,
-            self.on_session_in_progress_websocket_connected_callback,
-            self.on_session_in_progress_websocket_message_callback,
-            on_updated_state_callback,
-            self.on_session_in_progress_websocket_closed_callback,
+            self.on_session_in_progress_websocket_connected,
+            self.on_session_in_progress_websocket_message,
+            on_state_updated_callback,
+            self.on_session_in_progress_websocket_closed,
         )
 
-    async def on_session_in_progress_websocket_connected_callback(self, websocket):
+    async def on_session_in_progress_websocket_connected(self, websocket):
         self.websocket_session_in_progress = websocket
 
-    async def on_session_in_progress_websocket_message_callback(
-        self, message, get_state_callback, on_updated_state_callback
+    async def on_session_in_progress_websocket_message(
+        self, message, get_state_callback, on_state_updated_callback
     ):
 
         try:
@@ -427,15 +428,16 @@ class HypervoltApiClient:
                 # This is a new session, reset the value
                 state.session_watthours_total_increasing = 0
 
-            if on_updated_state_callback:
-                on_updated_state_callback(state)
+            if on_state_updated_callback:
+                on_state_updated_callback(state)
 
         except Exception as exc:
             _LOGGER.error(
                 f"on_session_in_progress_websocket_message_callback message: {message}, error: {exc}"
             )
 
-    async def on_session_in_progress_websocket_closed_callback(self):
+    async def on_session_in_progress_websocket_closed(self):
+        _LOGGER.debug("on_session_in_progress_websocket_closed")
         self.websocket_session_in_progress = None
 
     async def send_message_to_sync(self, message):
@@ -530,9 +532,9 @@ class HypervoltApiClient:
         schedule_type,
         schedule_tz,
     ) -> HypervoltDeviceState:
-        """Use API to update the state. Raise exception on error"""
-        """schedule_type and schedule_tz should have been obtained via by getting the schedule first"""
-        """I've only seen type of: "restricted" so not sure what other values are valid"""
+        """Use API to update the state. Raise exception on error
+        schedule_type and schedule_tz should have been obtained via by getting the schedule first
+        I've only seen type of: "restricted" so not sure what other values are valid"""
 
         schedule_intervals_to_push = []
         for schedule_interval in schedule_intervals:

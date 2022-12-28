@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-import datetime
-import json
 import logging
 
 from homeassistant.components.select import SelectEntity
-from dataclasses import dataclass
-from typing import Optional
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.const import PERCENTAGE
 
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
@@ -35,16 +29,12 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
     # TODO: Get these from translations
     _CHARGE_MODE_STRINGS = ["Boost", "Eco", "Super Eco"]
 
-    def __init__(self, coordinator):
-        """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator)
-
     @property
-    def name(self):
+    def name(self) -> str:
         return super().name + " Charge Mode"
 
     @property
-    def unique_id(self):
+    def unique_id(self) -> str:
         return super().unique_id + "_charge_mode"
 
     @property
@@ -76,16 +66,12 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
     # TODO: Get these from translations
     _ACTIVATION_MODE_STRINGS = ["Plug and Charge", "Schedule"]
 
-    def __init__(self, coordinator):
-        """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator)
-
     @property
-    def name(self):
+    def name(self) -> str:
         return super().name + " Activation Mode"
 
     @property
-    def unique_id(self):
+    def unique_id(self) -> str:
         return super().unique_id + "_activation_mode"
 
     @property
