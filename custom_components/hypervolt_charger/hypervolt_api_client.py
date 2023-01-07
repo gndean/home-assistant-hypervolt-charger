@@ -570,14 +570,15 @@ class HypervoltApiClient:
             "intervals": schedule_intervals_to_push,
         }
 
+        _LOGGER.debug("Set schedule: %s", schedule_data)
+
         async with session.put(
             url=f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule",
             data=json.dumps(schedule_data),
             headers={"content-type": "application/json"},
         ) as response:
             if response.status == 200:
-                response_text = await response.text()
-                _LOGGER.debug(f"Hypervolt charger schedule: {response_text}")
+                _LOGGER.debug(f"Schedule set")
             elif response.status == 401:
                 _LOGGER.warning("Set_schedule, unauthorised")
                 raise InvalidAuth
