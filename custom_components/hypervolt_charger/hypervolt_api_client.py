@@ -190,7 +190,10 @@ class HypervoltApiClient:
         return state
 
     async def notify_on_hypervolt_sync_websocket(
-        self, session, get_state_callback, on_state_updated_callback
+        self,
+        session: aiohttp.ClientSession,
+        get_state_callback,
+        on_state_updated_callback,
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -269,9 +272,9 @@ class HypervoltApiClient:
 
     async def notify_on_websocket(
         self,
-        log_prefix,
-        url,
-        session,
+        log_prefix: str,
+        url: str,
+        session: aiohttp.ClientSession,
         get_state_callback,
         on_connected_callback,
         on_message_callback,
@@ -288,17 +291,9 @@ class HypervoltApiClient:
         backoff_seconds = 3
 
         try:
-            # Move cookies from login session to websocket
-            requests_cookies = session.cookie_jar.filter_cookies(
-                "https://api.hypervolt.co.uk"
-            )
-            cookies = ""
-            for key, cookie in requests_cookies.items():
-                cookies += f"{cookie.key}={cookie.value};"
-
             async for websocket in websockets.connect(
                 url,
-                extra_headers={"Cookie": cookies},
+                extra_headers={"authorization": session.headers["authorization"]},
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
                 user_agent_header=self.get_user_agent(),
@@ -360,7 +355,10 @@ class HypervoltApiClient:
             _LOGGER.debug(f"{log_prefix} exit")
 
     async def notify_on_hypervolt_session_in_progress_websocket(
-        self, session, get_state_callback, on_state_updated_callback
+        self,
+        session: aiohttp.ClientSession,
+        get_state_callback,
+        on_state_updated_callback,
     ):
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
 
