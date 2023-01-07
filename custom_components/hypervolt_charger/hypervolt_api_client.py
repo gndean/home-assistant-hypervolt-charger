@@ -83,6 +83,8 @@ class HypervoltApiClient:
                                     session.headers[
                                         "authorization"
                                     ] = f'Bearer {cookies["session"].value}'
+
+                                    session.cookie_jar.clear()
                                 else:
                                     _LOGGER.warning(
                                         "Unable to get session token. Auth may fail"

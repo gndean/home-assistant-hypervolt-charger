@@ -84,10 +84,9 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
             # If we have an active session, try and use that now
             # If that fails, we'll re-login
-            if not self.api_session.closed and len(
-                self.api_session.cookie_jar.filter_cookies(
-                    "https://api.hypervolt.co.uk"
-                )
+            if (
+                not self.api_session.closed
+                and "authorization" in self.api_session.headers
             ):
                 _LOGGER.debug("Active session found, updating state")
                 state = await self.api.update_state_from_schedule(
