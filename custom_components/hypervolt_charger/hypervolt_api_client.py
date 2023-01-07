@@ -195,7 +195,7 @@ class HypervoltApiClient:
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
         await self.notify_on_websocket(
-            "notify_on_websocket sync",
+            f"notify_on_websocket sync, {asyncio.current_task().get_name()},",
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
             session,
             get_state_callback,
@@ -282,6 +282,8 @@ class HypervoltApiClient:
         Used as a common function for multiple websocket endpoints"""
         _LOGGER.debug(f"{log_prefix} enter")
 
+        task_cancelled = False
+
         # If the connection is closed, we retry with an exponential back-off delay
         backoff_seconds = 3
 
@@ -327,7 +329,11 @@ class HypervoltApiClient:
                 except websockets.ConnectionClosed:
                     _LOGGER.warning(f"{log_prefix} ConnectionClosed")
                     continue
-
+                except asyncio.CancelledError as exc:
+                    # Re-raise to break websocket loop
+                    _LOGGER.debug(f"{log_prefix} cancelled (websocket loop)")
+                    task_cancelled = True
+                    raise exc
                 except Exception as exc:
                     _LOGGER.warning(f"{log_prefix} exception ${exc}")
                     continue
@@ -336,15 +342,18 @@ class HypervoltApiClient:
                     if on_closed_callback:
                         await on_closed_callback()
 
-                    # Apply back off here
-                    _LOGGER.debug(
-                        f"{log_prefix} backing off {backoff_seconds} seconds before reconnection attempt"
-                    )
-                    await asyncio.sleep(backoff_seconds)
+                    if not task_cancelled:
+                        # Apply back off here if we're not cancelled
+                        _LOGGER.debug(
+                            f"{log_prefix} backing off {backoff_seconds} seconds before reconnection attempt"
+                        )
+                        await asyncio.sleep(backoff_seconds)
 
-                    # Increase back-off for next time, up to a max of 1 minute
-                    backoff_seconds = min(60, int(backoff_seconds * 1.7))
+                        # Increase back-off for next time, up to a max of 1 minute
+                        backoff_seconds = min(60, int(backoff_seconds * 1.7))
 
+        except asyncio.CancelledError as exc:
+            _LOGGER.debug(f"{log_prefix} cancelled (main try/catch)")
         except Exception as exc:
             _LOGGER.error(f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
         finally:
@@ -356,7 +365,7 @@ class HypervoltApiClient:
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
 
         await self.notify_on_websocket(
-            "notify_on_websocket session/in-progress",
+            f"notify_on_websocket session/in-progress, {asyncio.current_task().get_name()},",
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
             session,
             get_state_callback,

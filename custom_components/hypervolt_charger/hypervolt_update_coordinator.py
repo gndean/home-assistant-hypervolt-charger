@@ -93,6 +93,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 state = await self.api.update_state_from_schedule(
                     self.api_session, self.data
                 )
+
             else:
                 _LOGGER.debug("No active session")
                 raise InvalidAuth
@@ -113,6 +114,13 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 f"HypervoltCoordinator _update_with_fallback, retry = {retry}, exception: {exc}"
             )
             if retry:
+                # Close websocksets and session
+                if self.notify_on_hypervolt_sync_push_task:
+                    self.notify_on_hypervolt_sync_push_task.cancel()
+
+                if self.notify_on_hypervolt_session_in_progress_push_task:
+                    self.notify_on_hypervolt_session_in_progress_push_task.cancel()
+
                 if self.api_session:
                     await self.api_session.close()
 
