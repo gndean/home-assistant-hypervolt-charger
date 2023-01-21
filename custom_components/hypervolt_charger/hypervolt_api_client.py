@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import websockets
 import datetime
 import aiohttp
@@ -290,7 +291,7 @@ class HypervoltApiClient:
         task_cancelled = False
 
         # If the connection is closed, we retry with an exponential back-off delay
-        backoff_seconds = 3
+        backoff_seconds = self.get_intial_backoff_delay_secs()
 
         try:
             async for websocket in websockets.connect(
@@ -319,12 +320,16 @@ class HypervoltApiClient:
                             )
 
                         # If we get this far, we assume our connection is good and we can reset the back-off
-                        backoff_seconds = 3
+                        backoff_seconds = self.get_intial_backoff_delay_secs()
 
-                    _LOGGER.warning(f"{log_prefix} iterator exited. Socket closed")
+                    _LOGGER.warning(
+                        f"{log_prefix} iterator exited. Socket closed, code: {websocket.close_code}, reason: {websocket.close_reason}"
+                    )
 
                 except websockets.ConnectionClosed:
-                    _LOGGER.warning(f"{log_prefix} ConnectionClosed")
+                    _LOGGER.warning(
+                        f"{log_prefix} ConnectionClosed, code: {websocket.close_code}, reason: {websocket.close_reason}"
+                    )
                     continue
                 except asyncio.CancelledError as exc:
                     # Re-raise to break websocket loop
@@ -346,8 +351,8 @@ class HypervoltApiClient:
                         )
                         await asyncio.sleep(backoff_seconds)
 
-                        # Increase back-off for next time, up to a max of 1 minute
-                        backoff_seconds = min(60, int(backoff_seconds * 1.7))
+                        # Increase back-off for next time
+                        backoff_seconds = self.increase_backoff_delay(backoff_seconds)
 
         except asyncio.CancelledError as exc:
             _LOGGER.debug(f"{log_prefix} cancelled (main try/catch)")
@@ -355,6 +360,14 @@ class HypervoltApiClient:
             _LOGGER.error(f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
         finally:
             _LOGGER.debug(f"{log_prefix} exit")
+
+    def get_intial_backoff_delay_secs(self):
+        """Get initial random delay for exponential back-off"""
+        return random.randint(3, 12)
+
+    def increase_backoff_delay(self, delay_secs: int):
+        """Return increased back-off delay for next time, up to a max of 5 minutes"""
+        return min(300, int(delay_secs * 1.7))
 
     async def notify_on_hypervolt_session_in_progress_websocket(
         self,
