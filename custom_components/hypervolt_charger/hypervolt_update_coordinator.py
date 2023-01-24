@@ -44,10 +44,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         coordinator = HypervoltUpdateCoordinator(hass, api=api)
         _LOGGER.debug("Create_hypervolt_coordinator HypervoltUpdateCoordinator created")
-        await coordinator.async_config_entry_first_refresh()
-
-        if not coordinator.last_update_success:
-            raise Exception("Failed to retrieve initial data")
 
         return coordinator
 
@@ -113,7 +109,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 f"HypervoltCoordinator _update_with_fallback, retry = {retry}, exception: {exc}"
             )
             if retry:
-                # Close websocksets and session
+                # Close websockets and session
                 if self.notify_on_hypervolt_sync_push_task:
                     self.notify_on_hypervolt_sync_push_task.cancel()
 
@@ -153,22 +149,32 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 return self.data
 
     async def async_unload(self):
+        _LOGGER.debug("HypervoltCoordinator async_unload")
+
+        await self.api.unload()
+
         if self.api_session:
             await self.api_session.close()
             self.api_session = None
 
+        # The api.unload call above should cause the push tasks to complete
+        # But we'll cancel them here too to make sure
         if self.notify_on_hypervolt_sync_push_task:
+            task_name = self.notify_on_hypervolt_sync_push_task.get_name()
             was_cancelled = self.notify_on_hypervolt_sync_push_task.cancel()
             _LOGGER.debug(
-                f"notify_on_hypervolt_sync_push_task was cancelled :{was_cancelled}"
+                f"notify_on_hypervolt_sync_push_task {task_name} was cancelled :{was_cancelled}"
             )
 
         if self.notify_on_hypervolt_session_in_progress_push_task:
+            task_name = (
+                self.notify_on_hypervolt_session_in_progress_push_task.get_name()
+            )
             was_cancelled = (
                 self.notify_on_hypervolt_session_in_progress_push_task.cancel()
             )
             _LOGGER.debug(
-                f"notify_on_hypervolt_session_in_progress_push_task was cancelled :{was_cancelled}"
+                f"notify_on_hypervolt_session_in_progress_push_task {task_name} was cancelled :{was_cancelled}"
             )
 
     def get_state(self) -> HypervoltDeviceState:

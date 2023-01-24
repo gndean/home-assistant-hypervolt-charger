@@ -33,6 +33,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     """Set up Hypervolt Charger from a config entry."""
+    coordinator: HypervoltUpdateCoordinator = None
+
     try:
         _LOGGER.debug("Async_setup_entry enter, entry_id: %s", config.entry_id)
 
@@ -46,12 +48,23 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         hass.data[DOMAIN][config.entry_id] = coordinator
 
+        await coordinator.async_config_entry_first_refresh()
+
+        if not coordinator.last_update_success:
+            raise Exception("Failed to retrieve initial data")
+
         _LOGGER.debug("Async_setup_entry async_forward_entry_setups")
         await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
         _LOGGER.debug("Async_setup_entry async_forward_entry_setups done")
 
         return True
     except Exception as exc:
+        _LOGGER.error("Async_setup_entry exception: %s", exc)
+        # Because we re-raise here, HA will retry async_setup_entry so we need
+        # to make sure we clean up any existing coordinator
+        if coordinator:
+            await coordinator.async_unload()
+
         raise ConfigEntryNotReady from exc
 
 

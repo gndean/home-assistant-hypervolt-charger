@@ -43,6 +43,19 @@ class HypervoltApiClient:
         self.websocket_session_in_progress: websockets.client.WebSocketClientProtocol = (
             None
         )
+        self.unload_requested = False
+
+    async def unload(self):
+        """Call to close any websockets and cancel any work. This object cannot be used again"""
+
+        _LOGGER.debug("Unload enter")
+
+        self.unload_requested = True
+
+        if self.websocket_sync:
+            await self.websocket_sync.close()
+        if self.websocket_session_in_progress:
+            await self.websocket_session_in_progress.close()
 
     async def login(self, session: aiohttp.ClientSession):
         """Attempt to log in using credentials from config.
@@ -286,14 +299,15 @@ class HypervoltApiClient:
     ):
         """Open websocket to url and block forever. Handle reconnections and back-off
         Used as a common function for multiple websocket endpoints"""
-        _LOGGER.debug(f"{log_prefix} enter")
-
-        task_cancelled = False
-
-        # If the connection is closed, we retry with an exponential back-off delay
-        backoff_seconds = self.get_intial_backoff_delay_secs()
 
         try:
+            _LOGGER.debug(f"{log_prefix} enter")
+
+            task_cancelled = False
+
+            # If the connection is closed, we retry with an exponential back-off delay
+            backoff_seconds = self.get_intial_backoff_delay_secs()
+
             async for websocket in websockets.connect(
                 url,
                 extra_headers={"authorization": session.headers["authorization"]},
@@ -304,6 +318,12 @@ class HypervoltApiClient:
                 try:
                     _LOGGER.info(f"{log_prefix} connected")
 
+                    # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
+                    # need a secondary check, via the HypervoltApiClient
+                    if self.unload_requested:
+                        _LOGGER.debug(f"{log_prefix} unload from connection loop")
+                        raise asyncio.CancelledError
+
                     if on_connected_callback:
                         await on_connected_callback(websocket)
 
@@ -312,6 +332,12 @@ class HypervoltApiClient:
                     # It raises a ConnectionClosedError when the connection is closed with any other code.
                     async for message in websocket:
                         _LOGGER.debug(f"{log_prefix} recv: {message}")
+
+                        # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
+                        # need a secondary check, via the HypervoltApiClient
+                        if self.unload_requested:
+                            _LOGGER.debug(f"{log_prefix} unload from message loop")
+                            raise asyncio.CancelledError
 
                         # Pass message onto handler, also passing the callback to inform the caller of the updated state
                         if on_message_callback:
@@ -343,6 +369,10 @@ class HypervoltApiClient:
                 finally:
                     if on_closed_callback:
                         await on_closed_callback()
+
+                    if self.unload_requested:
+                        _LOGGER.debug(f"{log_prefix} unload from finally")
+                        raise asyncio.CancelledError
 
                     if not task_cancelled:
                         # Apply back off here if we're not cancelled
