@@ -1,7 +1,7 @@
 {
   "domain": "hypervolt_charger",
   "name": "Hypervolt Charger",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "integration_type": "device",
   "config_flow": true,
   "documentation": "https://github.com/gndean/home-assistant-hypervolt-charger",

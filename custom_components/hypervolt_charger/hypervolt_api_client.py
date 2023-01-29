@@ -555,26 +555,12 @@ class HypervoltApiClient:
 
     async def set_lock_state(self, session: aiohttp.ClientSession, lock: bool):
         """Set the lock state"""
-
-        lock_status_data = {"is_locked": lock}
-
-        async with session.post(
-            url=f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/lock-status",
-            data=json.dumps(lock_status_data),
-            headers={"content-type": "application/json"},
-        ) as response:
-            if response.status == 200:
-                response_text = await response.text()
-                _LOGGER.debug(f"Hypervolt set lock status: {response_text}")
-            elif response.status == 401:
-                _LOGGER.warning("Set lock status, unauthorised")
-                raise InvalidAuth
-            else:
-                _LOGGER.error(
-                    "Set lock status, error from API, status: %d",
-                    response.status,
-                )
-                raise CannotConnect
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "sync.apply",
+            "params": {"is_locked": lock},
+        }
+        await self.send_message_to_sync(json.dumps(message))
 
     async def set_schedule(
         self,
