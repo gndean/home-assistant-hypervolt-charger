@@ -1,20 +1,21 @@
 {
   "domain": "hypervolt_charger",
   "name": "Hypervolt Charger",
-  "version": "1.0.9",
-  "integration_type": "device",
+  
+  "codeowners": [
+    "@gndean"
+  ],
   "config_flow": true,
+  "dependencies": [],
   "documentation": "https://github.com/gndean/home-assistant-hypervolt-charger",
+  "homekit": {},
+  "integration_type": "device",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/gndean/home-assistant-hypervolt-charger/issues",
   "requirements": [
     "websockets==10.4"
   ],
   "ssdp": [],
-  "zeroconf": [],
-  "homekit": {},
-  "dependencies": [],
-  "codeowners": [
-    "@gndean"
-  ],
-  "iot_class": "cloud_polling"
-}
+  "version": "1.0.9",
+  "zeroconf": []
+}  
