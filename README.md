@@ -12,9 +12,13 @@ A [Home Assistant](https://www.home-assistant.io/) Custom Component integration 
 
 ![](demo.gif)
 
+# Is this official?
+
+This integration is not officially supported by Hypervolt and has been independently developed. Hypervolt are however aware of the integration and appear happy for it to exist.
+
 # Installation
 
-Copy contents of custom_components folder to your home-assistant config/custom_components folder or install through [HACS](https://hacs.xyz/). After reboot of Home-Assistant, this integration can be configured through the integration setup UI.
+The easy way to set up is to install through [HACS](https://hacs.xyz/). After installation via HACS and reboot of Home-Assistant, this integration can be added through the integration setup UI, like any other integration: Settings / Integrations / Add New Integration.
 
 # Use
 
@@ -79,6 +83,8 @@ _Only available during a charging session_, these represent the voltage and curr
 
 ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
 
+⚠️ `Hypervolt Voltage` is not supported by version 3.0 chargers. It always reads as 0 ([issue 18](https://github.com/gndean/home-assistant-hypervolt-charger/issues/18)).
+
 ## 👁 Hypervolt CT Current, Hypervolt CT Power (Sensors) 
 
 _Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
@@ -101,7 +107,7 @@ Sensor removed as it was based on the fixed 14p / unit tariff calculations so ne
 
 # Known limitations
 
-- Only tested with a Hypervolt Home 2.0 charge point
+- Tested with version 2.0 and 3.0 Hypervolt home charge points. `Hypervolt Voltage` is not supported on 3.0 charge points.
 - Only one charger per account supported. If you have more than one, only the first will be found
 - Log in has to be via via email address and password. Google or Apple login not supported
 - The charger name is not supported. The Device name in Home Assistant will be your charger's serial
