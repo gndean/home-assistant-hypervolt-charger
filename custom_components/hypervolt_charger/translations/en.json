@@ -10,13 +10,17 @@
             "unknown": "Unexpected error"
         },
         "step": {
-            "user": {
+            "login": {
                 "title": "Log in using your Hypervolt.co.uk credentials",
                 "description": "Note: login via Google or Apple not supported",
                 "data": {
                     "password": "Password",
                     "username": "Email address"
                 }
+            },
+            "select_charger": {
+                "title": "Select charger serial",
+                "description": "Note: you can add multiple chargers by adding one now and repeating the Add Integration steps"
             }
         }
     }
