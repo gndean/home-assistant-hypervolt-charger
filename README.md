@@ -101,18 +101,13 @@ Are fields related to the current, or most recent charging session.
 
 This is a sensor of state class [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) which means that it is suitable for energy measurement within Home Assistant. Unlike `Hypervolt Session Energy`, the value is not taken directly from the Hypervolt APIs, cannot decrease during a session and will only reset on a new charging session, for which the [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) logic will handle. For a discussion of why this sensor was created, see [Sensor provides negative value when reset (HA Energy Dashboard) #5](https://github.com/gndean/home-assistant-hypervolt-charger/issues/5)
 
-## ~~💵 Hypervolt Session Money Spent~~ 
-
-Sensor removed as it was based on the fixed 14p / unit tariff calculations so never correct.
-
 # Known limitations
 
 - Tested with version 2.0 and 3.0 Hypervolt home charge points. `Hypervolt Voltage` is not supported on 3.0 charge points.
-- Only one charger per account supported. If you have more than one, only the first will be found
 - Log in has to be via via email address and password. Google or Apple login not supported
 - The charger name is not supported. The Device name in Home Assistant will be your charger's serial
 - English language only
 - Schedule _times_ cannot be read or set, only the Schedule _mode_ can be changed. I think we probably need [this](https://github.com/home-assistant/core/pull/81943) feature within Home Assistant, to allow integrations to use DateTime fields, before controlling the schedule is feasible. Unless you know better? 😉\
   ℹ️ You can of course now use Home Assistant to control starting and stopping your charger instead of relying on the Hypervolt schedule
 - LED modes are not supported
-- Money spent calculations not supported. In December 2022, Hypervolt added  tariff-aware calculations within the app. I will see if we can support this in a future release.
+- Money spent calculations not supported. In December 2022, Hypervolt added tariff-aware calculations within the app. I will see if we can support this in a future release.
