@@ -18,7 +18,7 @@ from .hypervolt_device_state import (
     HypervoltScheduleInterval,
     HypervoltScheduleTime,
 )
-
+from .timestamped_queue import TimestampedQueue
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class HypervoltApiClient:
             None
         )
         self.unload_requested = False
+        self.session_total_energy_snapshots_queue = TimestampedQueue(1000)
 
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
@@ -433,7 +434,7 @@ class HypervoltApiClient:
             state = get_state_callback()
             prev_session_id = state.session_id
 
-            # Only update state if properties are present, other leave state as-is
+            # Only update state if properties are present, otherwise leave state as-is
             if "charging" in jmsg:
                 state.is_charging = jmsg.get("charging")
             if "session" in jmsg:
@@ -472,6 +473,11 @@ class HypervoltApiClient:
                         else 0,
                         state.session_watthours,
                     )
+
+                    # Enqueue this energy value to help calculate the charger power
+                    self.session_total_energy_snapshots_queue.add(
+                        state.session_watthours_total_increasing
+                    )
             else:
                 _LOGGER.debug(
                     "on_session_in_progress_websocket_message_callback new charging session detected"
@@ -479,6 +485,30 @@ class HypervoltApiClient:
 
                 # This is a new session, reset the value
                 state.session_watthours_total_increasing = 0
+
+            # Calculate derived field: session_current_power
+            window_size_ms = 60 * 1000  # 1 minute
+            if state.is_charging and state.session_watthours:
+                oldest_energy_value = (
+                    self.session_total_energy_snapshots_queue.head_element()
+                )
+                age_ms = oldest_energy_value.age_ms()
+                if age_ms > 1000:
+                    energy_diff_wh = state.session_watthours - oldest_energy_value.value
+                    state.session_current_power = int(
+                        energy_diff_wh / (age_ms / 1000.0 / 3600.0)
+                    )
+                else:
+                    # Not enough data points to update the power. Keep current value
+                    pass
+
+            else:
+                state.session_current_power = 0
+
+            # Trim queue down to window size
+            self.session_total_energy_snapshots_queue.delete_old_elements(
+                window_size_ms
+            )
 
             if on_state_updated_callback:
                 on_state_updated_callback(state)

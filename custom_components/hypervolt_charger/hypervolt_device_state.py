@@ -72,3 +72,8 @@ class HypervoltDeviceState:
         # energy calculations via Home Assistant
         # Resets to 0 when a new session is created else is the max(session_watthours) during the session
         self.session_watthours_total_increasing = None
+
+        # A derived field, calculated from differentiating session_watthours_total_increasing
+        # over a time window and estimating the current charger output power over that time.
+        # In Watts
+        self.current_session_power = 0
