@@ -486,16 +486,19 @@ class HypervoltApiClient:
                 # This is a new session, reset the value
                 state.session_watthours_total_increasing = 0
 
-            # Calculate derived field: session_current_power
-            window_size_ms = 60 * 1000  # 1 minute
-            if state.is_charging and state.session_watthours:
+            # Calculate derived field: current_session_power
+            window_size_ms = 5 * 60 * 1000  # 5 minutes
+            if state.is_charging and state.session_watthours_total_increasing:
                 oldest_energy_value = (
                     self.session_total_energy_snapshots_queue.head_element()
                 )
                 age_ms = oldest_energy_value.age_ms()
-                if age_ms > 1000:
-                    energy_diff_wh = state.session_watthours - oldest_energy_value.value
-                    state.session_current_power = int(
+                if age_ms > 10000:  # 10 seconds
+                    energy_diff_wh = (
+                        state.session_watthours_total_increasing
+                        - oldest_energy_value.value
+                    )
+                    state.current_session_power = int(
                         energy_diff_wh / (age_ms / 1000.0 / 3600.0)
                     )
                 else:
@@ -503,7 +506,7 @@ class HypervoltApiClient:
                     pass
 
             else:
-                state.session_current_power = 0
+                state.current_session_power = 0
 
             # Trim queue down to window size
             self.session_total_energy_snapshots_queue.delete_old_elements(
