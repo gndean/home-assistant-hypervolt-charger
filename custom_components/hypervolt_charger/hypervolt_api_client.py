@@ -328,9 +328,9 @@ class HypervoltApiClient:
                     if on_connected_callback:
                         await on_connected_callback(websocket)
 
-                    # From: https://websockets.readthedocs.io/en/stable/reference/client.html#websockets.client.connect,
-                    # the iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away).
-                    # It raises a ConnectionClosedError when the connection is closed with any other code.
+                    # From: https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html#using-a-connection,
+                    # The iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away)
+                    # or without a close code. It raises a ConnectionClosedError when the connection is closed with any other code.
                     async for message in websocket:
                         _LOGGER.debug(f"{log_prefix} recv: {message}")
 
@@ -353,6 +353,16 @@ class HypervoltApiClient:
                         f"{log_prefix} iterator exited. Socket closed, code: {websocket.close_code}, reason: {websocket.close_reason}"
                     )
 
+                except websockets.ConnectionClosedOK:
+                    _LOGGER.warning(
+                        f"{log_prefix} ConnectionClosedOK, code: {websocket.close_code}, reason: {websocket.close_reason}"
+                    )
+                    continue
+                except websockets.ConnectionClosedError:
+                    _LOGGER.warning(
+                        f"{log_prefix} ConnectionClosedError, code: {websocket.close_code}, reason: {websocket.close_reason}"
+                    )
+                    continue
                 except websockets.ConnectionClosed:
                     _LOGGER.warning(
                         f"{log_prefix} ConnectionClosed, code: {websocket.close_code}, reason: {websocket.close_reason}"

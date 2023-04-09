@@ -10,7 +10,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/gndean/home-assistant-hypervolt-charger/issues",
   "requirements": [
-    "websockets==10.4"
+    "websockets==11.*"
   ],
-  "version": "1.2.0"
+  "version": "1.2.1"
 }
