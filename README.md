@@ -87,7 +87,7 @@ _Only available during a charging session_, these represent the voltage and curr
 
 ## 👁 Hypervolt CT Current, Hypervolt CT Power (Sensors) 
 
-_Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
+_For Hypervolt 2.0 devices: Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
 
 ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
 
