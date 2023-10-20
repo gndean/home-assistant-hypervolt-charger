@@ -89,7 +89,6 @@ async def async_setup_entry(
             device_class=SensorDeviceClass.POWER,
             state_class=SensorStateClass.MEASUREMENT,
             unit_of_measure=UnitOfPower.WATT,
-            scale_factor=0.01,  # API appears to give us 0.01W units
         ),
         HypervoltSensor(
             coordinator,
