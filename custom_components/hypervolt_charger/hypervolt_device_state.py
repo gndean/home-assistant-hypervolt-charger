@@ -63,7 +63,7 @@ class HypervoltDeviceState:
         self.charge_mode: HypervoltChargeMode = None
         self.release_state: HypervoltReleaseState = None
         self.activation_mode: HypervoltActivationMode = None
-        self.schedule_intervals = None  # Array of HypervoltScheduleInterval
+        self.schedule_intervals: list(HypervoltScheduleInterval) = None
         self.schedule_tz = None
         self.schedule_type = None
 
