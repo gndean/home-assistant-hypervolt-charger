@@ -43,7 +43,8 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         )
 
         coordinator = HypervoltUpdateCoordinator(hass, api=api)
-        _LOGGER.debug("Create_hypervolt_coordinator HypervoltUpdateCoordinator created")
+        _LOGGER.debug(
+            "Create_hypervolt_coordinator HypervoltUpdateCoordinator created")
 
         return coordinator
 
@@ -76,7 +77,8 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
     async def _update_with_fallback(self, retry=True) -> HypervoltDeviceState:
         try:
-            _LOGGER.debug(f"Hypervolt _update_with_fallback enter, retry = {retry}")
+            _LOGGER.debug(
+                f"Hypervolt _update_with_fallback enter, retry = {retry}")
 
             # If we have an active session, try and use that now
             # If that fails, we'll re-login
@@ -184,3 +186,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     def on_state_updated(self, state: HypervoltDeviceState):
         """A callback from the HypervoltApiClient when a potential state change has been pushed to a web socket"""
         self.async_set_updated_data(state)
+
+    async def force_update(self):
+        """Request fresh data from the HV APIs"""
+        await self._async_update_data()

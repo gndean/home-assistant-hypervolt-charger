@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import time
+from copy import deepcopy
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components.time import TimeEntity
@@ -57,23 +58,22 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
     @property
     def native_value(self) -> time | None:
         """Return the start or end time defined in the schedule, or None if the session doesn't exist."""
-        intervals = self._hypervolt_coordinator.data.schedule_intervals
+        intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
         tm = None
-        if len(intervals) > self.interval_index:
+        if len(intervals) > self.interval_index and intervals[self.interval_index]:
             tm = intervals[self.interval_index].start_time if self.is_start_time else intervals[self.interval_index].end_time
 
         return tm
 
     async def async_set_value(self, value: time) -> None:
         """Set the start or end time defined in the schedule."""
-        self.async_write_ha_state()
 
         # First create an array of the max size, and fill it with the existing values
         new_intervals: list[HypervoltScheduleInterval] = [
             None] * NUM_SCHEDULE_INTERVALS
-        intervals = self._hypervolt_coordinator.data.schedule_intervals
+        intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
         for i, interval in enumerate(intervals):
-            new_intervals[i] = interval
+            new_intervals[i] = deepcopy(interval)
 
         # Now set the new value
         if not new_intervals[self.interval_index]:
@@ -85,23 +85,4 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
         else:
             new_intervals[self.interval_index].end_time = value
 
-        # Remove any new intervals that have no start or end time, or the same start and end time
-        self._hypervolt_coordinator.data.schedule_intervals = [
-            interval for interval in new_intervals if interval and interval.start_time and interval.end_time and interval.start_time != interval.end_time]
-
-        pass
-
-        # Now set the new schedule back to the API
-        # await self._hypervolt_coordinator.api.set_schedule(
-        #     self._hypervolt_coordinator.api_session,
-        #     self._hypervolt_coordinator.data.activation_mode,
-        #     self._hypervolt_coordinator.data.schedule_intervals,
-        #     self._hypervolt_coordinator.data.schedule_type,
-        #     self._hypervolt_coordinator.data.schedule_tz
-        # )
-
-        # # Read back schedule from API so that we're up to date
-        # await self._hypervolt_coordinator.api.update_state_from_schedule(
-        #     self._hypervolt_coordinator.api_session,
-        #     self._hypervolt_coordinator.data,
-        # )
+        self._hypervolt_coordinator.data.schedule_intervals_to_apply = new_intervals

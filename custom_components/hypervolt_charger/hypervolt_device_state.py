@@ -61,6 +61,11 @@ class HypervoltDeviceState:
         self.schedule_tz = None
         self.schedule_type = None
 
+        # The schedule intervals to apply when the Apply button is pressed
+        # These can be edited via the Start/End Time time entities but only
+        # applied to the charger when the Apply button is pressed
+        self.schedule_intervals_to_apply: list[HypervoltScheduleInterval] = None
+
         # Not taken directly from the Hypervolt API but instead a calculated field
         # to be exposed as a strictly TOTAL_INCREASING sensor class to allow
         # energy calculations via Home Assistant

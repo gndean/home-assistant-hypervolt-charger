@@ -7,6 +7,7 @@ import websockets
 import datetime
 import aiohttp
 import asyncio
+from copy import deepcopy
 
 from homeassistant.exceptions import HomeAssistantError
 from .hypervolt_device_state import (
@@ -191,6 +192,9 @@ class HypervoltApiClient:
                                 end["hours"], end["minutes"], end["seconds"]),
                         )
                     )
+                # Copy to schedule_intervals_to_apply
+                state.schedule_intervals_to_apply = deepcopy(
+                    state.schedule_intervals)
 
             elif response.status == 401:
                 _LOGGER.warning("Update_state_from_schedule, unauthorised")

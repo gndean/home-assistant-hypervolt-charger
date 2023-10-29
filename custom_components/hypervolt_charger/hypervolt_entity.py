@@ -12,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HypervoltEntity(CoordinatorEntity):
-    def __init__(self, coordinator: HypervoltUpdateCoordinator):
+    def __init__(self, coordinator: HypervoltUpdateCoordinator) -> None:
         super().__init__(coordinator)
 
     @property
@@ -23,8 +23,7 @@ class HypervoltEntity(CoordinatorEntity):
     def device_info(self) -> DeviceInfo:
         return {
             "identifiers": {(DOMAIN, self.coordinator.data.charger_id)},
-            "name": self.coordinator.data.charger_id,
-            # "model": self.coordinator.data.model,
+            "name": f"Hypervolt {self.coordinator.data.charger_id}",
             "manufacturer": "Hypervolt",
         }
 
