@@ -7,12 +7,14 @@ from homeassistant.config_entries import ConfigEntry
 
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
+from .hypervolt_device_state import HypervoltScheduleInterval
 from .const import DOMAIN
-
 
 import logging
 
 _LOGGER = logging.getLogger(__name__)
+
+NUM_SCHEDULE_INTERVALS = 4
 
 
 async def async_setup_entry(
@@ -22,25 +24,23 @@ async def async_setup_entry(
 
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    switches = [
-        HypervoltScheduleTime(coordinator, True, 0),
-        HypervoltScheduleTime(coordinator, False, 0),
-        HypervoltScheduleTime(coordinator, True, 1),
-        HypervoltScheduleTime(coordinator, False, 1),
-        HypervoltScheduleTime(coordinator, True, 2),
-        HypervoltScheduleTime(coordinator, False, 2),
-        HypervoltScheduleTime(coordinator, True, 3),
-        HypervoltScheduleTime(coordinator, False, 3),
-
-    ]
-
+    # Create a switch for each schedule interval
+    switches = []
+    for interval_index in range(NUM_SCHEDULE_INTERVALS):
+        switches.append(
+            HypervoltScheduleTime(coordinator, True, interval_index)
+        )
+        switches.append(
+            HypervoltScheduleTime(coordinator, False, interval_index)
+        )
     async_add_entities(switches)
 
 
 class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
     def __init__(self, coordinator: HypervoltUpdateCoordinator, is_start_time: bool, interval_index: int) -> None:
-        super().__init__(coordinator)
+        super(HypervoltScheduleTime, self).__init__(coordinator)
 
+        self._attr_native_value = None
         self.is_start_time = is_start_time
         self.interval_index = interval_index
 
@@ -56,15 +56,52 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
 
     @property
     def native_value(self) -> time | None:
-        """Return the value reported by the time."""
+        """Return the start or end time defined in the schedule, or None if the session doesn't exist."""
         intervals = self._hypervolt_coordinator.data.schedule_intervals
         tm = None
         if len(intervals) > self.interval_index:
-            hv_time = intervals[self.interval_index].start_time if self.is_start_time else intervals[self.interval_index].end_time
-            tm = time(hv_time.hours, hv_time.minutes, hv_time.seconds)
+            tm = intervals[self.interval_index].start_time if self.is_start_time else intervals[self.interval_index].end_time
 
         return tm
 
-    def set_value(self, value: time) -> None:
-        """Change the time."""
+    async def async_set_value(self, value: time) -> None:
+        """Set the start or end time defined in the schedule."""
+        self.async_write_ha_state()
+
+        # First create an array of the max size, and fill it with the existing values
+        new_intervals: list[HypervoltScheduleInterval] = [
+            None] * NUM_SCHEDULE_INTERVALS
+        intervals = self._hypervolt_coordinator.data.schedule_intervals
+        for i, interval in enumerate(intervals):
+            new_intervals[i] = interval
+
+        # Now set the new value
+        if not new_intervals[self.interval_index]:
+            new_intervals[self.interval_index] = HypervoltScheduleInterval(
+                time(), time())
+
+        if self.is_start_time:
+            new_intervals[self.interval_index].start_time = value
+        else:
+            new_intervals[self.interval_index].end_time = value
+
+        # Remove any new intervals that have no start or end time, or the same start and end time
+        self._hypervolt_coordinator.data.schedule_intervals = [
+            interval for interval in new_intervals if interval and interval.start_time and interval.end_time and interval.start_time != interval.end_time]
+
         pass
+
+        # Now set the new schedule back to the API
+        # await self._hypervolt_coordinator.api.set_schedule(
+        #     self._hypervolt_coordinator.api_session,
+        #     self._hypervolt_coordinator.data.activation_mode,
+        #     self._hypervolt_coordinator.data.schedule_intervals,
+        #     self._hypervolt_coordinator.data.schedule_type,
+        #     self._hypervolt_coordinator.data.schedule_tz
+        # )
+
+        # # Read back schedule from API so that we're up to date
+        # await self._hypervolt_coordinator.api.update_state_from_schedule(
+        #     self._hypervolt_coordinator.api_session,
+        #     self._hypervolt_coordinator.data,
+        # )

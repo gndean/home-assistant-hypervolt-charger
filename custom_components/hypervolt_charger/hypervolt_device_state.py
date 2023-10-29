@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from datetime import time
 
 
 class HypervoltLockState(Enum):
@@ -28,17 +29,10 @@ class HypervoltReleaseState(Enum):
     RELEASED = 1
 
 
-class HypervoltScheduleTime:
-    def __init__(self, hours, minutes, seconds):
-        self.hours = hours
-        self.minutes = minutes
-        self.seconds = seconds
-
-
 class HypervoltScheduleInterval:
     def __init__(
-        self, start_time: HypervoltScheduleTime, end_time: HypervoltScheduleTime
-    ):
+        self, start_time: time, end_time: time
+    ) -> None:
         self.start_time = start_time
         self.end_time = end_time
 
@@ -46,7 +40,7 @@ class HypervoltScheduleInterval:
 class HypervoltDeviceState:
     """Class to hold current state of Hypervolt charger"""
 
-    def __init__(self, charger_id):
+    def __init__(self, charger_id) -> None:
         self.charger_id = charger_id
         self.is_charging = None
         self.session_id = None
@@ -63,7 +57,7 @@ class HypervoltDeviceState:
         self.charge_mode: HypervoltChargeMode = None
         self.release_state: HypervoltReleaseState = None
         self.activation_mode: HypervoltActivationMode = None
-        self.schedule_intervals: list(HypervoltScheduleInterval) = None
+        self.schedule_intervals: list[HypervoltScheduleInterval] = None
         self.schedule_tz = None
         self.schedule_type = None
 

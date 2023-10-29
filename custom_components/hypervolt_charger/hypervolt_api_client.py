@@ -16,7 +16,6 @@ from .hypervolt_device_state import (
     HypervoltReleaseState,
     HypervoltActivationMode,
     HypervoltScheduleInterval,
-    HypervoltScheduleTime,
 )
 from .timestamped_queue import TimestampedQueue
 
@@ -69,7 +68,8 @@ class HypervoltApiClient:
 
                 login_base_url = json.loads(await response.text())["login"]
 
-                _LOGGER.info("Login loading URL: %s", login_base_url.split("?")[0])
+                _LOGGER.info("Login loading URL: %s",
+                             login_base_url.split("?")[0])
 
                 # This will cause a 302 redirect to a new URL that loads a login form
                 async with session.get(login_base_url) as response:
@@ -185,12 +185,10 @@ class HypervoltApiClient:
 
                     state.schedule_intervals.append(
                         HypervoltScheduleInterval(
-                            HypervoltScheduleTime(
-                                start["hours"], start["minutes"], start["seconds"]
-                            ),
-                            HypervoltScheduleTime(
-                                end["hours"], end["minutes"], end["seconds"]
-                            ),
+                            datetime.time(
+                                start["hours"], start["minutes"], start["seconds"]),
+                            datetime.time(
+                                end["hours"], end["minutes"], end["seconds"]),
                         )
                     )
 
@@ -311,7 +309,8 @@ class HypervoltApiClient:
 
             async for websocket in websockets.connect(
                 url,
-                extra_headers={"authorization": session.headers["authorization"]},
+                extra_headers={
+                    "authorization": session.headers["authorization"]},
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
                 user_agent_header=self.get_user_agent(),
@@ -322,7 +321,8 @@ class HypervoltApiClient:
                     # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
                     # need a secondary check, via the HypervoltApiClient
                     if self.unload_requested:
-                        _LOGGER.debug(f"{log_prefix} unload from connection loop")
+                        _LOGGER.debug(
+                            f"{log_prefix} unload from connection loop")
                         raise asyncio.CancelledError
 
                     if on_connected_callback:
@@ -337,7 +337,8 @@ class HypervoltApiClient:
                         # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
                         # need a secondary check, via the HypervoltApiClient
                         if self.unload_requested:
-                            _LOGGER.debug(f"{log_prefix} unload from message loop")
+                            _LOGGER.debug(
+                                f"{log_prefix} unload from message loop")
                             raise asyncio.CancelledError
 
                         # Pass message onto handler, also passing the callback to inform the caller of the updated state
@@ -393,12 +394,14 @@ class HypervoltApiClient:
                         await asyncio.sleep(backoff_seconds)
 
                         # Increase back-off for next time
-                        backoff_seconds = self.increase_backoff_delay(backoff_seconds)
+                        backoff_seconds = self.increase_backoff_delay(
+                            backoff_seconds)
 
         except asyncio.CancelledError as exc:
             _LOGGER.debug(f"{log_prefix} cancelled (main try/catch)")
         except Exception as exc:
-            _LOGGER.error(f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
+            _LOGGER.error(
+                f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
         finally:
             _LOGGER.debug(f"{log_prefix} exit")
 
@@ -609,7 +612,7 @@ class HypervoltApiClient:
         self,
         session: aiohttp.ClientSession,
         activation_mode: HypervoltActivationMode,
-        schedule_intervals,
+        schedule_intervals: list[HypervoltScheduleInterval],
         schedule_type,
         schedule_tz,
     ) -> HypervoltDeviceState:
@@ -622,14 +625,14 @@ class HypervoltApiClient:
             schedule_intervals_to_push.append(
                 [
                     {
-                        "hours": schedule_interval.start_time.hours,
-                        "minutes": schedule_interval.start_time.minutes,
-                        "seconds": schedule_interval.start_time.seconds,
+                        "hours": schedule_interval.start_time.hour,
+                        "minutes": schedule_interval.start_time.minute,
+                        "seconds": schedule_interval.start_time.second,
                     },
                     {
-                        "hours": schedule_interval.end_time.hours,
-                        "minutes": schedule_interval.end_time.minutes,
-                        "seconds": schedule_interval.end_time.seconds,
+                        "hours": schedule_interval.end_time.hour,
+                        "minutes": schedule_interval.end_time.minute,
+                        "seconds": schedule_interval.end_time.second,
                     },
                 ]
             )
