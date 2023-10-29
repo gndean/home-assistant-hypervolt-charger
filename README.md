@@ -44,15 +44,30 @@ Matches the lock feature in the app and allows locking of the charger. The `Lock
 
 ## 🔽 Hypervolt Activation Mode (Select)
 
-Switches between 
-* `Plug and Charge` and 
-* `Schedule Charge` 
+Switches between
+
+- `Plug and Charge` and
+- `Schedule Charge`
 
 modes.
 
 ℹ️ Changes to this setting are not reflected in realtime within the integration or Hypervolt app. If changed externally to the integration its state should update to the correct state within 5 minutes.
 
-ℹ️ Currently, the schedule itself cannot be changed - see Known Limitations
+## 🕓 Hypervolt Schedule Session (n) Start/End Time
+
+Represents the schedule start/end time for the given session number. The values are populated from the Hypervolt servers and then can be modifed within Home Assistant.
+
+ℹ️ Session times are not changed until the `Apply Schedule` button is pressed. This allows start and end times to be modified individually and all changes applied at once, to avoid invalid or undesirable schedules being applied while interim changes are being made.
+
+ℹ️ To delete a session, set the start and the end time to be the same value. Once applied, the session will be removed.
+
+## ▶️ Hypervolt Apply Schedule button
+
+Press this button to apply the schedule session start and end times.
+
+Once successfully applied, the session times are read back from the API. This may cause the session time values to update, for example, any gaps in the sessions will be removed i.e. if session 1 and session 3 were populated only, once applied, session 1 and session 2 would be populated. Also any sessions where the start time equals the end time will be removed.
+
+ℹ️ Applying the session times does not automatically switch the Hypervolt into Schedule mode. For that, use the `Activation Mode` select
 
 ## 🔽 Hypervolt Charge Mode (Select)
 
@@ -70,10 +85,11 @@ Reads and sets the LED brightness, in percent, as available via Settings within 
 
 ## 👁 Hypervolt Charging Readiness (Sensor)
 
-One of: 
-* `Charging`
-* `Ready`
-* `Not Ready - Force Stopped`
+One of:
+
+- `Charging`
+- `Ready`
+- `Not Ready - Force Stopped`
 
 ⚠️ `Not Ready - Force Stopped` was added to overcome a gotcha with Hypervolt. If the user manually stops a charge by switching charging off via the app or integration, the Hypervolt charger remembers this state and if later is switched into Schedule Charge activation mode, the scheduled charge _will not automatically start_ as might be expected. To overcome this, the Charging switch needs to be manually toggled. This can be done when in Scheduled mode even outside of the schedule window and will switch the `Hypervolt Charging Readiness` state back to `Ready`. ⚠️ In the Hypervolt app, there doesn't appear to be a way of telling whether the charger is ready or not.
 
@@ -85,7 +101,7 @@ _Only available during a charging session_, these represent the voltage and curr
 
 ⚠️ `Hypervolt Voltage` is not supported by version 3.0 chargers. It always reads as 0 ([issue 18](https://github.com/gndean/home-assistant-hypervolt-charger/issues/18)).
 
-## 👁 Hypervolt CT Current, Hypervolt CT Power (Sensors) 
+## 👁 Hypervolt CT Current, Hypervolt CT Power (Sensors)
 
 _For Hypervolt 2.0 devices: Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
 
@@ -107,7 +123,5 @@ This is a sensor of state class [total_increasing](https://developers.home-assis
 - Log in has to be via via email address and password. Google or Apple login not supported
 - The charger name is not supported. The Device name in Home Assistant will be your charger's serial
 - English language only
-- Schedule _times_ cannot be read or set, only the Schedule _mode_ can be changed. I think we probably need [this](https://github.com/home-assistant/core/pull/81943) feature within Home Assistant, to allow integrations to use DateTime fields, before controlling the schedule is feasible. Unless you know better? 😉\
-  ℹ️ You can of course now use Home Assistant to control starting and stopping your charger instead of relying on the Hypervolt schedule
 - LED modes are not supported
 - Money spent calculations not supported. In December 2022, Hypervolt added tariff-aware calculations within the app. I will see if we can support this in a future release.
