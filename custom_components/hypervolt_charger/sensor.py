@@ -1,29 +1,29 @@
+from dataclasses import dataclass
 import logging
+from typing import Optional
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
-from dataclasses import dataclass
-from typing import Optional
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
+    UnitOfEnergy,
+    UnitOfMass,
+    UnitOfPower,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.const import (
-    UnitOfEnergy,
-    PERCENTAGE,
-    UnitOfMass,
-    UnitOfPower,
-    ELECTRIC_CURRENT_AMPERE,
-    ELECTRIC_POTENTIAL_VOLT,
-)
 
-from .hypervolt_device_state import HypervoltReleaseState
-from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
-from .hypervolt_entity import HypervoltEntity
 from .const import DOMAIN
+from .hypervolt_device_state import HypervoltReleaseState
+from .hypervolt_entity import HypervoltEntity
+from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ async def async_setup_entry(
             "current_session_current_milliamps",
             device_class=SensorDeviceClass.CURRENT,
             state_class=SensorStateClass.MEASUREMENT,
-            unit_of_measure=ELECTRIC_CURRENT_AMPERE,
+            unit_of_measure=UnitOfElectricCurrent.AMPERE,
             scale_factor=0.001,
         ),
         HypervoltSensor(
@@ -79,7 +79,7 @@ async def async_setup_entry(
             "current_session_ct_current",
             device_class=SensorDeviceClass.CURRENT,
             state_class=SensorStateClass.MEASUREMENT,
-            unit_of_measure=ELECTRIC_CURRENT_AMPERE,
+            unit_of_measure=UnitOfElectricCurrent.AMPERE,
             scale_factor=0.001,
         ),
         HypervoltSensor(
@@ -96,7 +96,7 @@ async def async_setup_entry(
             "current_session_voltage",
             device_class=SensorDeviceClass.VOLTAGE,
             state_class=SensorStateClass.MEASUREMENT,
-            unit_of_measure=ELECTRIC_POTENTIAL_VOLT,
+            unit_of_measure=UnitOfElectricPotential.VOLT,
         ),
         HypervoltSensor(
             coordinator,
