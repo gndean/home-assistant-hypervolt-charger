@@ -79,7 +79,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-
             charger_count = len(self.charger_ids)
             if charger_count == 0:
                 errors["base"] = "no_chargers_found"
@@ -96,7 +95,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     charger_menu_options[f"charger_{i}"] = self.charger_ids[i]
 
                 return self.async_show_menu(
-                    step_id="select_charger", menu_options=charger_menu_options
+                    step_id="login", menu_options=charger_menu_options
                 )
 
         # Reshow login form but with errors displayed
