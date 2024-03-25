@@ -3,9 +3,24 @@ set_schedule:
     device:
       integration: hypervolt_charger
   fields:
-    schedule:
-      description: Schedule period.
+    tracker_rate:
+      required: true
+      description: Target tracker rate to schedule
       selector:
         entity:
           integration: octopus_energy
           domain: binary_sensor
+    backup_schedule_start:
+      description: Backup start time if time retrieval fails
+      selector:
+        time:
+    backup_schedule_end:
+      description: Backup end time if start time retrieval fails
+      selector:
+        time:
+    append_backup:
+      required: true
+      description: Append the backup period to the schedule
+      selector:
+        boolean:
+

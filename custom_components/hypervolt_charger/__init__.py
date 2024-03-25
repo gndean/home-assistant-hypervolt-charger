@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-import datetime
+import time as __time
+from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import Platform
@@ -72,55 +73,98 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
             _LOGGER.info(f"Setting schedule intervals")
 
             dev_reg = device_registry.async_get(hass)
-            schedule_id = service.data['schedule']
+            tracker_id = service.data.get('tracker_rate', None)
+            backup_start = service.data.get('backup_schedule_start', None)
+            backup_end = service.data.get('backup_schedule_end', None)
+            append = service.data.get('append_backup', False)
+            scheduled_blocks = None
 
-            for device_id in service.data['device_id']:
+            backup_available = (backup_start is not None and backup_end is not None)
+            if backup_available:
+                backup_start = datetime(*(__time.strptime(backup_start,"%H:%M:%S")[0:6]))
+                backup_end = datetime(*(__time.strptime(backup_end,"%H:%M:%S")[0:6]))
+
+            if append and not backup_available:
+                _LOGGER.warning("Requested backup schedule appended but not provided!")
+
+            for device_id in service.data.get('device_id', None):
                 device = dev_reg.async_get(device_id)
+
                 if device is not None:
                     for config_id in device.config_entries:
                         coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][config_id]
                         break
                 else:
-                    _LOGGER.info(f"Unknown device id: {device_id}")
-
-
-            tracker = hass.states.get(schedule_id)
-
-            if tracker is None:
-                _LOGGER.info(f"Unknown entity id: {schedule}")
-                return
-
-            if tracker.attributes.get("last_evaluated", None) is None:
-                _LOGGER.info("Tracker not evaluated yet")
-                return
-
-            if tracker.attributes.get("planned_dispatches", None) is not None:
-                # Using intelligent tracker
-                scheduled_blocks = tracker.attributes.get("planned_dispatches")
-            else:
-                if tracker.attributes.get("rates_incomplete"):
-                    _LOGGER.info("Tracker rates not available yet")
+                    _LOGGER.warning(f"Unknown device id, unable to set schedule: {device_id}")
                     return
+
+            if tracker_id is not None:
+                tracker = hass.states.get(tracker_id)
+
+            if tracker is not None:
+                if tracker.attributes.get("last_evaluated", None) is None:
+                    _LOGGER.info("Tracker not evaluated yet")
+                    if backup_available is False:
+                        _LOGGER.warning("Tracker data not available and no backup set, unable to set schedule")
+                        return
+
+                if tracker.attributes.get("planned_dispatches", None) is not None:
+                    # Using intelligent tracker
+                    scheduled_blocks = tracker.attributes.get("planned_dispatches")
                 else:
-                    scheduled_blocks = tracker.attributes.get("target_times", None)
+                    if tracker.attributes.get("rates_incomplete"):
+                        _LOGGER.info("Tracker rates not available yet")
+                    else:
+                        scheduled_blocks = tracker.attributes.get("target_times", None)
 
-            if scheduled_blocks is None:
-                _LOGGER.info("Error no scheduled blocks set")
-                return
-
-            _LOGGER.info(f"{scheduled_blocks}")
-
-            # It would be nice to merge any continous times...
             intervals = []
-            for time in scheduled_blocks:
-                if datetime.datetime.now() < time["end"]:
-                    interval = HypervoltScheduleInterval(time["start"], time["end"])
-                    intervals.append(interval)
+            merged_intervals = []
+            if scheduled_blocks is not None:
+
+                _LOGGER.info(f"Scheduled blocks from tracker: {scheduled_blocks}")
+                for block in scheduled_blocks:
+                    # Only append blocks that haven't already finished. Backup will be appended
+                    # regardless
+                    if datetime.now().astimezone() < block["end"]:
+                        interval = HypervoltScheduleInterval(block["start"], block["end"])
+                        intervals.append(interval)
+
+                _LOGGER.info(f"Intervals to set:")
+                for interval in intervals:
+                    _LOGGER.info(f"{interval.start_time} -> {interval.end_time}")
+
+                _LOGGER.info("Merging continous times:")
+                i = 0
+                while i < len(intervals):
+                    time_a = intervals[i]
+                    skip = 1
+                    while (i+skip) < len(intervals):
+                        if time_a.end_time == intervals[i+skip].start_time:
+                            time_a.end_time = intervals[i+skip].end_time
+                            skip = skip + 1
+                        else:
+                            break
+                    i = i + skip
+                    merged_intervals.append(time_a)
+
+                for interval in merged_intervals:
+                    _LOGGER.info(f"{interval.start_time} -> {interval.end_time}")
+
+                # Hypervolt will apply a schedule even if it overlaps existing schedules but
+                # have not tested how this is interpreted by the charger in reality
+                if append and backup_available:
+                    _LOGGER.info(f"Appending backup {backup_start} -> {backup_end}")
+                    merged_intervals.append(HypervoltScheduleInterval(backup_start, backup_end))
+
+            else:
+                if backup_available:
+                    _LOGGER.info(f"No scheduled blocks found, using backup {backup_start} - {backup_end}")
+                    intervals.append(HypervoltScheduleInterval(backup_start, backup_end))
 
             await coordinator.api.set_schedule(
                 coordinator.api_session,
                 HypervoltActivationMode.SCHEDULE,
-                intervals,
+                merged_intervals,
                 "restricted",               #coordinator.data.schedule_type,
                 coordinator.data.schedule_tz
             )
