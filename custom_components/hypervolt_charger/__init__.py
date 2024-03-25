@@ -89,24 +89,31 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
                 _LOGGER.info(f"Unknown entity id: {schedule}")
                 return
 
-            if tracker.attributes["last_evaluated"] is None:
+            if tracker.attributes.get("last_evaluated", None) is None:
                 _LOGGER.info("Tracker not evaluated yet")
                 return
 
-            if tracker.attributes["rates_incomplete"] is False:
-                _LOGGER.info("Tracker rates not available yet")
+            if tracker.attributes.get("planned_dispatches", None) is not None:
+                # Using intelligent tracker
+                scheduled_blocks = tracker.attributes.get("planned_dispatches")
+            else:
+                if tracker.attributes.get("rates_incomplete"):
+                    _LOGGER.info("Tracker rates not available yet")
+                    return
+                else:
+                    scheduled_blocks = tracker.attributes.get("target_times", None)
 
-            target_times = tracker.attributes["target_times"]
+            if scheduled_blocks is None:
+                _LOGGER.info("Error no scheduled blocks set")
+                return
 
-            _LOGGER.info(f"{target_times}")
+            _LOGGER.info(f"{scheduled_blocks}")
 
             # It would be nice to merge any continous times...
             intervals = []
-            for time in tracker.attributes["target_times"]:
-                    interval = HypervoltScheduleInterval(time["start"], time["end"])
-                    intervals.append(interval)
-
-           
+            for time in scheduled_blocks:
+                interval = HypervoltScheduleInterval(time["start"], time["end"])
+                intervals.append(interval)
 
             await coordinator.api.set_schedule(
                 coordinator.api_session,
