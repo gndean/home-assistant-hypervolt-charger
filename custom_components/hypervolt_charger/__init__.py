@@ -7,10 +7,15 @@ from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .utils import get_version_from_manifest
+from .hypervolt_device_state import (
+    HypervoltActivationMode,
+    HypervoltScheduleInterval,
+)
 
 # There should be a file for each of the declared platforms e.g. sensor.py
 PLATFORMS: list[Platform] = [
@@ -30,6 +35,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     _LOGGER.debug("Async_setup enter")
 
     hass.data.setdefault(DOMAIN, {})
+
     return True
 
 
@@ -59,6 +65,67 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
         _LOGGER.debug("Async_setup_entry async_forward_entry_setups done")
 
+        _LOGGER.debug("Setting up schedule service")
+
+        async def async_set_schedule(service: ha.ServiceCall) -> None:
+            _LOGGER.info(f"Setting schedule intervals")
+
+            dev_reg = device_registry.async_get(hass)
+            schedule_id = service.data['schedule']
+
+            for device_id in service.data['device_id']:
+                device = dev_reg.async_get(device_id)
+                if device is not None:
+                    for config_id in device.config_entries:
+                        coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][config_id]
+                        break
+                else:
+                    _LOGGER.info(f"Unknown device id: {device_id}")
+
+
+            tracker = hass.states.get(schedule_id)
+
+            if tracker is None:
+                _LOGGER.info(f"Unknown entity id: {schedule}")
+                return
+
+            if tracker.attributes["last_evaluated"] is None:
+                _LOGGER.info("Tracker not evaluated yet")
+                return
+
+            if tracker.attributes["rates_incomplete"] is False:
+                _LOGGER.info("Tracker rates not available yet")
+
+            target_times = tracker.attributes["target_times"]
+
+            _LOGGER.info(f"{target_times}")
+
+            # It would be nice to merge any continous times...
+            intervals = []
+            for time in tracker.attributes["target_times"]:
+                    interval = HypervoltScheduleInterval(time["start"], time["end"])
+                    intervals.append(interval)
+
+           
+
+            await coordinator.api.set_schedule(
+                coordinator.api_session,
+                HypervoltActivationMode.SCHEDULE,
+                intervals,
+                "restricted",               #coordinator.data.schedule_type,
+                coordinator.data.schedule_tz
+            )
+
+            _LOGGER.info("Schedule applied. Reading back from API")
+
+            # Read back schedule from API so that we're synced with the API
+            await coordinator.force_update()
+
+            _LOGGER.info("Read back shedule intervals")
+
+
+        hass.services.async_register(DOMAIN, "set_schedule", async_set_schedule)
+
         return True
     except Exception as exc:
         _LOGGER.error("Async_setup_entry exception: %s", exc)
@@ -68,7 +135,6 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
             await coordinator.async_unload()
 
         raise ConfigEntryNotReady from exc
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
