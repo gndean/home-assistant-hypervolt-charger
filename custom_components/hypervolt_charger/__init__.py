@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import datetime
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import Platform
@@ -112,8 +113,9 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
             # It would be nice to merge any continous times...
             intervals = []
             for time in scheduled_blocks:
-                interval = HypervoltScheduleInterval(time["start"], time["end"])
-                intervals.append(interval)
+                if datetime.datetime.now() < time["end"]:
+                    interval = HypervoltScheduleInterval(time["start"], time["end"])
+                    intervals.append(interval)
 
             await coordinator.api.set_schedule(
                 coordinator.api_session,
