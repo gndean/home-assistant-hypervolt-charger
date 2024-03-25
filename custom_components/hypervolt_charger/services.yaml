@@ -1,0 +1,11 @@
+set_schedule:
+  target:
+    device:
+      integration: hypervolt_charger
+  fields:
+    schedule:
+      description: Schedule period.
+      selector:
+        entity:
+          integration: octopus_energy
+          domain: binary_sensor
