@@ -88,7 +88,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             for interval in intervals:
                 _LOGGER.info(f"{interval.start_time} -> {interval.end_time}")
 
-            _LOGGER.info("Merging continous times:")
+            _LOGGER.info("Merging continuous times:")
             i = 0
             while i < len(intervals):
                 time_a = intervals[i]
