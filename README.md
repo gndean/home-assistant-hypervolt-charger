@@ -117,6 +117,35 @@ Are fields related to the current, or most recent charging session.
 
 This is a sensor of state class [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) which means that it is suitable for energy measurement within Home Assistant. Unlike `Hypervolt Session Energy`, the value is not taken directly from the Hypervolt APIs, cannot decrease during a session and will only reset on a new charging session, for which the [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) logic will handle. For a discussion of why this sensor was created, see [Sensor provides negative value when reset (HA Energy Dashboard) #5](https://github.com/gndean/home-assistant-hypervolt-charger/issues/5)
 
+# Services
+
+## set_schedule
+
+The set_schedule service is intended to be used by 🐙 Octopus Agile users with the [Octopus Energy](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy) integration, specifically the [Target Rates](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/setup/target_rate/) sensors which allow you to find the cheapest periods between two times. This allows an Agile user to set the schedule on the Hypervolt rather than switching the Hypervolt on or off based on the `binary_sensor`. This hopefully avoids failed charges due to cloud or connectivity outages that may occur overnight, and allows the user to check the schedule before settling down for bed 😴. A pseudo-intelligent automation could trigger when the car is plugged in (e.g. from a car integration), set a [dynamic target rate](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/services/#octopus_energyupdate_target_config) between the current time until the morning, and then schedule the Hypervolt for those periods, and send a notification to the phone with the intended charging periods.
+
+It has 4 parameters:
+
+* Target Device - Your Hypervolt ID
+* Tracker Rate - The binary_sensor target created by the Octopus Energy integration
+* Backup Start - A backup start period if no times are found in the target sensor, consider setting this to give you enough charge to get to work and back...
+* Backup End - Backup end period
+* Append Backup - If checked this will always append the backup schedule period to the schedule. For example, we could set 06:00-07:00 to allow morning pre-heat climate control to draw from the grid rather than battery
+
+The following sample yaml can be used to configure the service in an automation:
+
+```yaml
+service: hypervolt_charger.set_schedule
+data:
+  backup_schedule_start: "04:30:00"
+  backup_schedule_end: "06:00:00"
+  tracker_rate: binary_sensor.octopus_energy_target_test
+  append_backup: true
+target:
+  device_id: HYPERVOLT_DEVICE_ID
+```
+
+It also has code to support an [intelligent_dispatching](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/entities/intelligent/) sensor to schedule the Hypervolt to match the `planned_dispatches` time periods. This has not been tested yet, but could be useful for owners with two cars and two chargers that want to set the second car to match the first car that is on the Intelligent Octopus Go tariff, or potentially Intelligent Octopus Flux or any other Intelligent stuff Octopus comes out with.
+
 # Known limitations
 
 - Tested with version 2.0 and 3.0 Hypervolt home charge points. `Hypervolt Voltage` is not supported on 3.0 charge points.
