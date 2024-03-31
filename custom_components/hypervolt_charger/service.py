@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time as __time
+import pytz
 from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
@@ -33,6 +34,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         backup_end = service.data.get('backup_schedule_end', None)
         append = service.data.get('append_backup', False)
         scheduled_blocks = None
+        timezone = None
 
         backup_available = (backup_start is not None and backup_end is not None)
         if backup_available:
@@ -48,6 +50,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if device is not None:
                 for config_id in device.config_entries:
                     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][config_id]
+                    timezone = pytz.timezone(coordinator.data.schedule_tz)
                     break
             else:
                 _LOGGER.warning(f"Unknown device id, unable to set schedule: {device_id}")
@@ -72,6 +75,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 else:
                     scheduled_blocks = tracker.attributes.get("target_times", None)
 
+        _LOGGER.debug(f"Current time: {datetime.now().astimezone()}")
+
         intervals = []
         merged_intervals = []
         if scheduled_blocks is not None:
@@ -79,9 +84,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.info(f"Scheduled blocks from tracker: {scheduled_blocks}")
             for block in scheduled_blocks:
                 # Only append blocks that haven't already finished. Backup will be appended
-                # regardless
+                # regardless. Modify timezone to match the existing scheduler tz data
                 if datetime.now().astimezone() < block["end"]:
-                    interval = HypervoltScheduleInterval(block["start"], block["end"])
+                    _LOGGER.debug(f"Start: {block['start']}")
+                    start = block["start"].astimezone(timezone)
+                    _LOGGER.debug(f"Start tz adjusted: {start}")
+                    end = block["end"].astimezone(timezone)
+                    interval = HypervoltScheduleInterval(start, end)
                     intervals.append(interval)
 
             _LOGGER.info(f"Intervals to set:")
@@ -115,6 +124,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if backup_available:
                 _LOGGER.info(f"No scheduled blocks found, using backup {backup_start} - {backup_end}")
                 intervals.append(HypervoltScheduleInterval(backup_start, backup_end))
+
+        _LOGGER.debug(f"Timezone used: {timezone}")
 
         await coordinator.api.set_schedule(
             coordinator.api_session,
