@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import logging
 import time as __time
-import pytz
 from datetime import datetime
+from dateutil import tz
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import Platform
@@ -50,7 +50,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if device is not None:
                 for config_id in device.config_entries:
                     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][config_id]
-                    timezone = pytz.timezone(coordinator.data.schedule_tz)
+                    timezone = tz.gettz(coordinator.data.schedule_tz)
                     break
             else:
                 _LOGGER.warning(f"Unknown device id, unable to set schedule: {device_id}")
