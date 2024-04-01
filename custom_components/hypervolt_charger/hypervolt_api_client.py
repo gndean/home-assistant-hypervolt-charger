@@ -24,6 +24,8 @@ from .timestamped_queue import TimestampedQueue
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_STORED_SENT_MESSAGES = 20
+
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
@@ -43,6 +45,10 @@ class HypervoltApiClient:
 
         self.websocket_sync: websockets.client.WebSocketClientProtocol = None
         self.websocket_session_in_progress: websockets.client.WebSocketClientProtocol = None
+
+        # Store a list of messages sent to the sync websocket
+        self.websocket_sync_sent_messages = []
+
         self.unload_requested = False
         self.session_total_energy_snapshots_queue = TimestampedQueue(1000)
 
@@ -198,7 +204,7 @@ class HypervoltApiClient:
         )
 
     async def on_sync_websocket_message(
-        self, message, get_state_callback, on_state_updated_callback
+        self, message: str, get_state_callback, on_state_updated_callback
     ):
         """Handle messages coming back from the /sync websocket"""
         try:
@@ -208,45 +214,43 @@ class HypervoltApiClient:
             # {"method":"sync.apply","params":[{"brightness":0.25}]}
             # or
             # {"jsonrpc":"2.0","id":"1","error":{"code":409,"error":"Concurrent modifications invalidated this request","data":null}}
-            jmsg = json.loads(message)
-            res_array = None
-            if "result" in jmsg:
-                res_array = jmsg["result"]
+            # or
+            # {"jsonrpc":"2.0","id":0,"result":{"authenticated":true}}
+            # So we need to handle both result and params structures and they can be an array or an object
+            msg = json.loads(message)
+            result = None
+            if "result" in msg:
+                result = msg["result"]
                 method = ""
-            elif "params" in jmsg:
-                method = jmsg.get("method", "")
-                res_array = jmsg["params"]
+            elif "params" in msg:
+                method = msg.get("method", "")
+                result = msg["params"]
+
+            if not method and "id" in msg:
+                # If this is a message response, find the method from the sent message
+                msg_id = msg.get("id")
+                for sent_message in self.websocket_sync_sent_messages:
+                    if sent_message.get("id") == msg_id:
+                        method = sent_message.get("method", "")
+                        break
 
             state = get_state_callback()
 
-            if res_array:
-                for item in res_array:
-                    # Only update state if properties are present, other leave state as-is
-                    if "brightness" in item:
-                        state.led_brightness = item["brightness"]
-                    if "lock_state" in item:
-                        state.lock_state = HypervoltLockState[
-                            item["lock_state"].upper()
-                        ]
-                    if "max_current" in item:
-                        state.max_current_milliamps = item["max_current"]
-                    if "solar_mode" in item:
-                        state.charge_mode = HypervoltChargeMode[
-                            item["solar_mode"].upper()
-                        ]
-                    if "release_state" in item:
-                        state.release_state = HypervoltReleaseState[
-                            item["release_state"].upper()
-                        ]
-                    if "lock_state" in item:
-                        state.release_state = HypervoltLockState[
-                            item["lock_state"].upper()
-                        ]
+            if method == "login":
+                await self.on_message_login(result)
+            elif method == "sync.snapshot":
+                self.on_message_sync_snapshot(result, state)
+
+                if on_state_updated_callback:
+                    on_state_updated_callback(state)
+            elif method == "get.session":
+                self.on_message_session(result, state)
+
                 if on_state_updated_callback:
                     on_state_updated_callback(state)
             else:
-                _LOGGER.warning(
-                    "On_sync_websocket_message_callback unknown message structure: %s",
+                _LOGGER.debug(
+                    "On_sync_websocket_message_callback ignored message: %s",
                     message,
                 )
         except Exception as exc:
@@ -255,13 +259,6 @@ class HypervoltApiClient:
     async def on_sync_websocket_connected(self, websocket, access_token):
         self.websocket_sync = websocket
         await self.send_sync_login_request(access_token)
-
-        # Get a snapshot now first
-        # await self.send_sync_snapshot_request()
-
-        # if self.get_charger_major_version() >= 3:
-        #     await self.send_sync_schedule_request()
-        #     await self.send_sync_plugncharge_request()
 
     async def on_sync_websocket_closed(self):
         _LOGGER.debug("on_sync_websocket_closed")
@@ -425,86 +422,8 @@ class HypervoltApiClient:
 
             jmsg = json.loads(message)
             state = get_state_callback()
-            prev_session_id = state.session_id
 
-            # Only update state if properties are present, otherwise leave state as-is
-            if "charging" in jmsg:
-                state.is_charging = jmsg.get("charging")
-            if "session" in jmsg:
-                state.session_id = jmsg["session"]
-            if "watt_hours" in jmsg:
-                state.session_watthours = jmsg["watt_hours"]
-            if "ccy_spent" in jmsg:
-                state.session_currency_spent = jmsg["ccy_spent"]
-            if "carbon_saved_grams" in jmsg:
-                state.session_carbon_saved_grams = jmsg["carbon_saved_grams"]
-
-            if "true_milli_amps" in jmsg:
-                state.current_session_current_milliamps = jmsg["true_milli_amps"]
-            if "ct_current" in jmsg:
-                state.current_session_ct_current = jmsg["ct_current"]
-            if "ct_power" in jmsg:
-                state.current_session_ct_power = jmsg["ct_power"]
-            if "voltage" in jmsg:
-                state.current_session_voltage = jmsg["voltage"]
-
-            # Calculate derived field: session_watthours_total_increasing
-            if (
-                not prev_session_id
-                or not state.session_id
-                or state.session_id == prev_session_id
-            ):
-                # Calculate the max seen session_watthours for this session
-                # Only do this if we're currently charging. This is to avoid the situation where
-                # HA restarts while not charging and we calculate a new value that is lower
-                # than the max we saw last session. Thus, on a restart of HA when not charging
-                # the value remains Unknown until the next charging session
-                if state.session_watthours and state.is_charging:
-                    state.session_watthours_total_increasing = max(
-                        state.session_watthours_total_increasing
-                        if state.session_watthours_total_increasing
-                        else 0,
-                        state.session_watthours,
-                    )
-
-                    # Enqueue this energy value to help calculate the charger power
-                    self.session_total_energy_snapshots_queue.add(
-                        state.session_watthours_total_increasing
-                    )
-            else:
-                _LOGGER.debug(
-                    "on_session_in_progress_websocket_message_callback new charging session detected"
-                )
-
-                # This is a new session, reset the value
-                state.session_watthours_total_increasing = 0
-
-            # Calculate derived field: current_session_power
-            window_size_ms = 5 * 60 * 1000  # 5 minutes
-            if state.is_charging and state.session_watthours_total_increasing:
-                oldest_energy_value = (
-                    self.session_total_energy_snapshots_queue.head_element()
-                )
-                age_ms = oldest_energy_value.age_ms()
-                if age_ms > 10000:  # 10 seconds
-                    energy_diff_wh = (
-                        state.session_watthours_total_increasing
-                        - oldest_energy_value.value
-                    )
-                    state.current_session_power = int(
-                        energy_diff_wh / (age_ms / 1000.0 / 3600.0)
-                    )
-                else:
-                    # Not enough data points to update the power. Keep current value
-                    pass
-
-            else:
-                state.current_session_power = 0
-
-            # Trim queue down to window size
-            self.session_total_energy_snapshots_queue.delete_old_elements(
-                window_size_ms
-            )
+            self.on_message_session(jmsg, state)
 
             if on_state_updated_callback:
                 on_state_updated_callback(state)
@@ -518,10 +437,26 @@ class HypervoltApiClient:
         _LOGGER.debug("on_session_in_progress_websocket_closed")
         self.websocket_session_in_progress = None
 
-    async def send_message_to_sync(self, message):
+    async def send_message_to_sync(self, message: dict):
         if self.websocket_sync:
-            _LOGGER.debug(f"Send_message_to_sync: {message}")
-            await self.websocket_sync.send(message)
+            if "jsonrpc" not in message:
+                message["jsonrpc"] = "2.0"
+
+            # Strip out token from logged message
+            loggable_message = deepcopy(message)
+            if "params" in loggable_message and "token" in loggable_message["params"]:
+                loggable_message["params"]["token"] = "********"
+
+            _LOGGER.debug(f"Send_message_to_sync: {json.dumps(loggable_message)}")
+
+            jmessage = json.dumps(message)
+
+            # Store in list and trim to max size
+            self.websocket_sync_sent_messages.append(message)
+            while len(self.websocket_sync_sent_messages) > MAX_STORED_SENT_MESSAGES:
+                self.websocket_sync_sent_messages.pop(0)
+
+            await self.websocket_sync.send(jmessage)
         else:
             _LOGGER.error(
                 "Send_message_to_sync cannot send because websocket_sync is not set"
@@ -532,14 +467,13 @@ class HypervoltApiClient:
         if self.websocket_sync:
             message = {
                 "id": self.get_next_message_id(),
-                "jsonrpc": "2.0",
                 "method": "login",
                 "params": {
                     "token": access_token,
                     "version": 2,
                 },
             }
-            await self.send_message_to_sync(json.dumps(message))
+            await self.send_message_to_sync(message)
             return True
         else:
             return False
@@ -551,7 +485,7 @@ class HypervoltApiClient:
                 "id": self.get_next_message_id(),
                 "method": "sync.snapshot",
             }
-            await self.send_message_to_sync(json.dumps(message))
+            await self.send_message_to_sync(message)
             return True
         else:
             return False
@@ -563,7 +497,7 @@ class HypervoltApiClient:
                 "id": self.get_next_message_id(),
                 "method": "schedules.get",
             }
-            await self.send_message_to_sync(json.dumps(message))
+            await self.send_message_to_sync(message)
             return True
         else:
             return False
@@ -575,7 +509,7 @@ class HypervoltApiClient:
                 "id": self.get_next_message_id(),
                 "method": "plugncharge.get",
             }
-            await self.send_message_to_sync(json.dumps(message))
+            await self.send_message_to_sync(message)
             return True
         else:
             return False
@@ -587,7 +521,7 @@ class HypervoltApiClient:
             "method": "sync.apply",
             "params": {"brightness": value / 100},
         }
-        await self.send_message_to_sync(json.dumps(message))
+        await self.send_message_to_sync(message)
 
     async def set_max_current_milliamps(self, value: int):
         """Set the Max Current Limit, in the range [6, 32]"""
@@ -596,7 +530,7 @@ class HypervoltApiClient:
             "method": "sync.apply",
             "params": {"max_current": value},
         }
-        await self.send_message_to_sync(json.dumps(message))
+        await self.send_message_to_sync(message)
 
     async def set_charge_mode(self, charge_mode: HypervoltChargeMode):
         """Set the charge mode from the passed in enum class"""
@@ -605,7 +539,7 @@ class HypervoltApiClient:
             "method": "sync.apply",
             "params": {"solar_mode": charge_mode.name.lower()},
         }
-        await self.send_message_to_sync(json.dumps(message))
+        await self.send_message_to_sync(message)
 
     async def set_charging(self, charging: bool):
         """Set the charge state"""
@@ -614,7 +548,7 @@ class HypervoltApiClient:
             "method": "sync.apply",
             "params": {"release": not charging},
         }
-        await self.send_message_to_sync(json.dumps(message))
+        await self.send_message_to_sync(message)
 
     def get_next_message_id(self) -> str:
         timestamp = datetime.datetime.utcnow().timestamp()
@@ -627,7 +561,7 @@ class HypervoltApiClient:
             "method": "sync.apply",
             "params": {"is_locked": lock},
         }
-        await self.send_message_to_sync(json.dumps(message))
+        await self.send_message_to_sync(message)
 
     async def set_schedule(
         self,
@@ -711,3 +645,115 @@ class HypervoltApiClient:
             )
             # Take a guess
             return 3
+
+    async def on_message_login(self, result: dict):
+        """Handle a message from the /sync websocket that is a login response"""
+        if result and "authenticated" in result and result["authenticated"]:
+            # Get the various states, depending on what the charger supports
+            await self.send_sync_snapshot_request()
+
+            if self.get_charger_major_version() >= 3:
+                # Version 3 chargers support schedules and plug and charge
+                # Version 2 returns "schedules.get not allowed" and "plugncharge.get not allowed" for these
+                await self.send_sync_schedule_request()
+                await self.send_sync_plugncharge_request()
+        else:
+            raise InvalidAuth
+
+    def on_message_sync_snapshot(self, result: list, state: HypervoltDeviceState):
+        """Handle an update in the device state from the /sync websocket"""
+        for item in result:
+            # Only update state if properties are present, other leave state as-is
+            if "brightness" in item:
+                state.led_brightness = item["brightness"]
+            if "lock_state" in item:
+                state.lock_state = HypervoltLockState[item["lock_state"].upper()]
+            if "max_current" in item:
+                state.max_current_milliamps = item["max_current"]
+            if "solar_mode" in item:
+                state.charge_mode = HypervoltChargeMode[item["solar_mode"].upper()]
+            if "release_state" in item:
+                state.release_state = HypervoltReleaseState[
+                    item["release_state"].upper()
+                ]
+
+    def on_message_session(self, result: dict, state: HypervoltDeviceState):
+        """Handle an update to the current charging session"""
+
+        prev_session_id = state.session_id
+
+        # Only update state if properties are present, otherwise leave state as-is
+        if "charging" in result:
+            state.is_charging = result.get("charging")
+        if "session" in result:
+            state.session_id = result["session"]
+        if "watt_hours" in result:
+            state.session_watthours = result["watt_hours"]
+        if "ccy_spent" in result:
+            state.session_currency_spent = result["ccy_spent"]
+        if "carbon_saved_grams" in result:
+            state.session_carbon_saved_grams = result["carbon_saved_grams"]
+
+        if "true_milli_amps" in result:
+            state.current_session_current_milliamps = result["true_milli_amps"]
+        if "ct_current" in result:
+            state.current_session_ct_current = result["ct_current"]
+        if "ct_power" in result:
+            state.current_session_ct_power = result["ct_power"]
+        if "voltage" in result:
+            state.current_session_voltage = result["voltage"]
+
+        # Calculate derived field: session_watthours_total_increasing
+        if (
+            not prev_session_id
+            or not state.session_id
+            or state.session_id == prev_session_id
+        ):
+            # Calculate the max seen session_watthours for this session
+            # Only do this if we're currently charging. This is to avoid the situation where
+            # HA restarts while not charging and we calculate a new value that is lower
+            # than the max we saw last session. Thus, on a restart of HA when not charging
+            # the value remains Unknown until the next charging session
+            if state.session_watthours and state.is_charging:
+                state.session_watthours_total_increasing = max(
+                    state.session_watthours_total_increasing
+                    if state.session_watthours_total_increasing
+                    else 0,
+                    state.session_watthours,
+                )
+
+                # Enqueue this energy value to help calculate the charger power
+                self.session_total_energy_snapshots_queue.add(
+                    state.session_watthours_total_increasing
+                )
+        else:
+            _LOGGER.debug(
+                "on_session_in_progress_websocket_message_callback new charging session detected"
+            )
+
+            # This is a new session, reset the value
+            state.session_watthours_total_increasing = 0
+
+        # Calculate derived field: current_session_power
+        window_size_ms = 5 * 60 * 1000  # 5 minutes
+        if state.is_charging and state.session_watthours_total_increasing:
+            oldest_energy_value = (
+                self.session_total_energy_snapshots_queue.head_element()
+            )
+            age_ms = oldest_energy_value.age_ms()
+            if age_ms > 10000:  # 10 seconds
+                energy_diff_wh = (
+                    state.session_watthours_total_increasing - oldest_energy_value.value
+                )
+                state.current_session_power = int(
+                    energy_diff_wh / (age_ms / 1000.0 / 3600.0)
+                )
+            else:
+                # Not enough data points to update the power. Keep current value
+                pass
+
+        else:
+            state.current_session_power = 0
+
+        # Trim queue down to window size
+        self.session_total_energy_snapshots_queue.delete_old_elements(window_size_ms)
