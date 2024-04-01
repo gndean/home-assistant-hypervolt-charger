@@ -8,14 +8,12 @@ from homeassistant.config_entries import ConfigEntry
 
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
-from .hypervolt_device_state import HypervoltScheduleInterval
+from .hypervolt_device_state import HypervoltScheduleInterval, NUM_SCHEDULE_INTERVALS
 from .const import DOMAIN
 
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-
-NUM_SCHEDULE_INTERVALS = 4
 
 
 async def async_setup_entry(
@@ -83,8 +81,6 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
         if intervals:
             for i, interval in enumerate(intervals):
                 new_intervals[i] = deepcopy(interval)
-        else:
-            new_intervals = [None] * NUM_SCHEDULE_INTERVALS
 
         # Now set the new value
         if not new_intervals[self.interval_index]:

@@ -40,6 +40,10 @@ class HypervoltDayOfWeek(Enum):
     ALL = 127
 
 
+# The number of schedule intervals / sessions we support via the UI
+NUM_SCHEDULE_INTERVALS = 4
+
+
 class HypervoltScheduleInterval:
     def __init__(
         self,
