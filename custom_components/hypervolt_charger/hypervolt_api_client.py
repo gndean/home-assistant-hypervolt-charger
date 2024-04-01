@@ -22,6 +22,7 @@ from .hypervolt_device_state import (
     HypervoltDayOfWeek,
 )
 from .timestamped_queue import TimestampedQueue
+from .utils import get_days_from_days_of_week
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -571,7 +572,7 @@ class HypervoltApiClient:
         }
         await self.send_message_to_sync(message)
 
-    async def v2_set_schedule(
+    async def set_schedule(
         self,
         session: aiohttp.ClientSession,
         activation_mode: HypervoltActivationMode,
@@ -579,55 +580,81 @@ class HypervoltApiClient:
         schedule_type,
         schedule_tz,
     ) -> HypervoltDeviceState:
-        """V2 HV only. Use API to update the state. Raise exception on error.
+        """Use API to update the state. Raise exception on error.
 
         Schedule_type and schedule_tz should have been obtained via by getting the schedule first
         I've only seen type of: "restricted" so not sure what other values are valid.
         """
 
-        schedule_intervals_to_push = []
-        for schedule_interval in schedule_intervals:
-            schedule_intervals_to_push.append(
-                [
-                    {
-                        "hours": schedule_interval.start_time.hour,
-                        "minutes": schedule_interval.start_time.minute,
-                        "seconds": schedule_interval.start_time.second,
-                    },
-                    {
-                        "hours": schedule_interval.end_time.hour,
-                        "minutes": schedule_interval.end_time.minute,
-                        "seconds": schedule_interval.end_time.second,
-                    },
-                ]
-            )
-
-        # Use defaults for type and tz if not passed-in
-        schedule_data = {
-            "type": schedule_type if schedule_type else "restricted",
-            "tz": schedule_tz if schedule_tz else "Europe/London",
-            "enabled": activation_mode == HypervoltActivationMode.SCHEDULE,
-            "intervals": schedule_intervals_to_push,
-        }
-
-        _LOGGER.debug("Set schedule: %s", schedule_data)
-
-        async with session.put(
-            url=f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule",
-            data=json.dumps(schedule_data),
-            headers={"content-type": "application/json"},
-        ) as response:
-            if response.status == 200:
-                _LOGGER.debug(f"Schedule set")
-            elif response.status == 401:
-                _LOGGER.warning("Set_schedule, unauthorised")
-                raise InvalidAuth
-            else:
-                _LOGGER.error(
-                    "Set_schedule, error from API, status: %d",
-                    response.status,
+        if self.get_charger_major_version() == 2:
+            schedule_intervals_to_push = []
+            for schedule_interval in schedule_intervals:
+                schedule_intervals_to_push.append(
+                    [
+                        {
+                            "hours": schedule_interval.start_time.hour,
+                            "minutes": schedule_interval.start_time.minute,
+                            "seconds": schedule_interval.start_time.second,
+                        },
+                        {
+                            "hours": schedule_interval.end_time.hour,
+                            "minutes": schedule_interval.end_time.minute,
+                            "seconds": schedule_interval.end_time.second,
+                        },
+                    ]
                 )
-                raise CannotConnect
+
+            # Use defaults for type and tz if not passed-in
+            schedule_data = {
+                "type": schedule_type if schedule_type else "restricted",
+                "tz": schedule_tz if schedule_tz else "Europe/London",
+                "enabled": activation_mode == HypervoltActivationMode.SCHEDULE,
+                "intervals": schedule_intervals_to_push,
+            }
+
+            _LOGGER.debug("Set schedule: %s", schedule_data)
+
+            async with session.put(
+                url=f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule",
+                data=json.dumps(schedule_data),
+                headers={"content-type": "application/json"},
+            ) as response:
+                if response.status == 200:
+                    _LOGGER.debug(f"Schedule set")
+                elif response.status == 401:
+                    _LOGGER.warning("Set_schedule, unauthorised")
+                    raise InvalidAuth
+                else:
+                    _LOGGER.error(
+                        "Set_schedule, error from API, status: %d",
+                        response.status,
+                    )
+                    raise CannotConnect
+        else:
+            # Version 3
+
+            sessions = []
+            for schedule_interval in schedule_intervals:
+                session = {
+                    "session_type": "recurring",
+                    "start_time": schedule_interval.start_time.strftime("%H:%M"),
+                    "end_time": schedule_interval.end_time.strftime("%H:%M"),
+                    "mode": schedule_interval.charge_mode.name.lower(),
+                    "days": get_days_from_days_of_week(schedule_interval.days_of_week),
+                }
+                sessions.append(session)
+
+            message = {
+                "id": self.get_next_message_id(),
+                "method": "schedule.set",
+                "params": {
+                    "enabled": activation_mode == HypervoltActivationMode.SCHEDULE,
+                    "is_default": False,
+                    "type": "hypervolt",
+                    "sessions": sessions,
+                },
+            }
+            await self.send_message_to_sync(message)
 
     def get_user_agent(self) -> str:
         return f"home-assistant-hypervolt-charger/{self.version}"

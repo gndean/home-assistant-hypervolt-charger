@@ -51,7 +51,7 @@ class HypervoltApplyScheduleButton(HypervoltEntity, ButtonEntity):
             )
 
             # Now set the new schedule back to the API
-            await self._hypervolt_coordinator.api.v2_set_schedule(
+            await self._hypervolt_coordinator.api.set_schedule(
                 self._hypervolt_coordinator.api_session,
                 self._hypervolt_coordinator.data.activation_mode,
                 self._hypervolt_coordinator.data.schedule_intervals_to_apply,

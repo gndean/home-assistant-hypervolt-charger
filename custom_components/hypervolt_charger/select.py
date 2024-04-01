@@ -162,7 +162,7 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
         """Change the selected option."""
         if option and option in self._ACTIVATION_MODE_STRINGS:
             if self._hypervolt_coordinator.api.get_charger_major_version() == 2:
-                await self._hypervolt_coordinator.api.v2_set_schedule(
+                await self._hypervolt_coordinator.api.set_schedule(
                     self._hypervolt_coordinator.api_session,
                     HypervoltActivationMode(
                         self._ACTIVATION_MODE_STRINGS.index(option)

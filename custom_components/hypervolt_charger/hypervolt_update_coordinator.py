@@ -92,6 +92,8 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     state = await self.api.v2_update_state_from_schedule(
                         self.api_session, self.data
                     )
+                else:
+                    state = self.data
 
             else:
                 _LOGGER.debug("No active session")
