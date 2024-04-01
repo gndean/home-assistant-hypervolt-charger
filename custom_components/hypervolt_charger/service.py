@@ -49,9 +49,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             if device is not None:
                 for config_id in device.config_entries:
-                    coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][config_id]
-                    timezone = get_time_zone(coordinator.data.schedule_tz)
-                    break
+                    coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN].get(config_id, None)
+                    if coordinator is None:
+                        _LOGGER.debug(f"Unknown config_id {config_id}")
+                    else:
+                        timezone = tz.gettz(coordinator.data.schedule_tz)
+                        break
+
             else:
                 _LOGGER.warning(f"Unknown device id, unable to set schedule: {device_id}")
                 return
