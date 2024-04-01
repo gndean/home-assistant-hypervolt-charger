@@ -37,18 +37,25 @@ class HypervoltApplyScheduleButton(HypervoltEntity, ButtonEntity):
 
         # Remove any new intervals that have no start or end time, or the same start and end time
         self._hypervolt_coordinator.data.schedule_intervals_to_apply = [
-            interval for interval in self._hypervolt_coordinator.data.schedule_intervals_to_apply if interval and interval.start_time and interval.end_time and interval.start_time != interval.end_time]
+            interval
+            for interval in self._hypervolt_coordinator.data.schedule_intervals_to_apply
+            if interval
+            and interval.start_time
+            and interval.end_time
+            and interval.start_time != interval.end_time
+        ]
 
         _LOGGER.info(
-            f"Setting {len(self._hypervolt_coordinator.data.schedule_intervals_to_apply)} schedule intervals")
+            f"Setting {len(self._hypervolt_coordinator.data.schedule_intervals_to_apply)} schedule intervals"
+        )
 
         # Now set the new schedule back to the API
-        await self._hypervolt_coordinator.api.set_schedule(
+        await self._hypervolt_coordinator.api.v2_set_schedule(
             self._hypervolt_coordinator.api_session,
             self._hypervolt_coordinator.data.activation_mode,
             self._hypervolt_coordinator.data.schedule_intervals_to_apply,
             self._hypervolt_coordinator.data.schedule_type,
-            self._hypervolt_coordinator.data.schedule_tz
+            self._hypervolt_coordinator.data.schedule_tz,
         )
 
         _LOGGER.info("Schedule applied. Reading back from API")
@@ -57,4 +64,5 @@ class HypervoltApplyScheduleButton(HypervoltEntity, ButtonEntity):
         await self._hypervolt_coordinator.force_update()
 
         _LOGGER.info(
-            f"Read back {len(self._hypervolt_coordinator.data.schedule_intervals)} schedule intervals")
+            f"Read back {len(self._hypervolt_coordinator.data.schedule_intervals)} schedule intervals"
+        )

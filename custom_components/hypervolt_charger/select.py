@@ -92,17 +92,25 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         if option and option in self._ACTIVATION_MODE_STRINGS:
-            await self._hypervolt_coordinator.api.set_schedule(
-                self._hypervolt_coordinator.api_session,
-                HypervoltActivationMode(self._ACTIVATION_MODE_STRINGS.index(option)),
-                self._hypervolt_coordinator.data.schedule_intervals,
-                self._hypervolt_coordinator.data.schedule_type,
-                self._hypervolt_coordinator.data.schedule_tz,
-            )
-            # Read back schedule from API so that we're up to date
-            await self._hypervolt_coordinator.api.update_state_from_schedule(
-                self._hypervolt_coordinator.api_session,
-                self._hypervolt_coordinator.data,
-            )
+            if self._hypervolt_coordinator.api.get_charger_major_version() == 2:
+                await self._hypervolt_coordinator.api.v2_set_schedule(
+                    self._hypervolt_coordinator.api_session,
+                    HypervoltActivationMode(
+                        self._ACTIVATION_MODE_STRINGS.index(option)
+                    ),
+                    self._hypervolt_coordinator.data.schedule_intervals,
+                    self._hypervolt_coordinator.data.schedule_type,
+                    self._hypervolt_coordinator.data.schedule_tz,
+                )
+                # Read back schedule from API so that we're up to date
+                await self._hypervolt_coordinator.api.update_state_from_schedule(
+                    self._hypervolt_coordinator.api_session,
+                    self._hypervolt_coordinator.data,
+                )
+            else:
+                await self._hypervolt_coordinator.api.v3_set_schedule_enabled(
+                    HypervoltActivationMode(self._ACTIVATION_MODE_STRINGS.index(option))
+                    == HypervoltActivationMode.SCHEDULE
+                )
         else:
             _LOGGER.warning("Unknown activation mode selected: %s", option)

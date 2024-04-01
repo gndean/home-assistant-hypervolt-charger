@@ -219,9 +219,9 @@ class HypervoltApiClient:
             # So we need to handle both result and params structures and they can be an array or an object
             msg = json.loads(message)
             result = None
+            method = None
             if "result" in msg:
                 result = msg["result"]
-                method = ""
             elif "params" in msg:
                 method = msg.get("method", "")
                 result = msg["params"]
@@ -245,6 +245,11 @@ class HypervoltApiClient:
                     on_state_updated_callback(state)
             elif method == "get.session":
                 self.on_message_session(result, state)
+
+                if on_state_updated_callback:
+                    on_state_updated_callback(state)
+            elif method in ("schedule.get", "schedule.set"):
+                self.on_message_schedules(result, state)
 
                 if on_state_updated_callback:
                     on_state_updated_callback(state)
@@ -563,7 +568,7 @@ class HypervoltApiClient:
         }
         await self.send_message_to_sync(message)
 
-    async def set_schedule(
+    async def v2_set_schedule(
         self,
         session: aiohttp.ClientSession,
         activation_mode: HypervoltActivationMode,
@@ -571,9 +576,11 @@ class HypervoltApiClient:
         schedule_type,
         schedule_tz,
     ) -> HypervoltDeviceState:
-        """Use API to update the state. Raise exception on error
-        schedule_type and schedule_tz should have been obtained via by getting the schedule first
-        I've only seen type of: "restricted" so not sure what other values are valid"""
+        """V2 HV only. Use API to update the state. Raise exception on error.
+
+        Schedule_type and schedule_tz should have been obtained via by getting the schedule first
+        I've only seen type of: "restricted" so not sure what other values are valid.
+        """
 
         schedule_intervals_to_push = []
         for schedule_interval in schedule_intervals:
@@ -757,3 +764,24 @@ class HypervoltApiClient:
 
         # Trim queue down to window size
         self.session_total_energy_snapshots_queue.delete_old_elements(window_size_ms)
+
+    def on_message_schedules(self, result: dict, state: HypervoltDeviceState):
+        """V3 only. Handle an update to the schedule."""
+        applied = result.get("applied", None)
+        if applied:
+            if "enabled" in applied:
+                schedule_enabled = applied["enabled"]
+                state.activation_mode = (
+                    HypervoltActivationMode.SCHEDULE
+                    if schedule_enabled
+                    else HypervoltActivationMode.PLUG_AND_CHARGE
+                )
+
+    async def v3_set_schedule_enabled(self, schedule_enabled: bool):
+        """V3 only. Set the schedule enabled/disabled"""
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "schedule.set",
+            "params": {"enabled": schedule_enabled},
+        }
+        await self.send_message_to_sync(message)
