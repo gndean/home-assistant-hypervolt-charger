@@ -317,6 +317,7 @@ class HypervoltApiClient:
                     # From: https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html#using-a-connection,
                     # The iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away)
                     # or without a close code. It raises a ConnectionClosedError when the connection is closed with any other code.
+                    msg_count = 0
                     async for message in websocket:
                         _LOGGER.debug(f"{log_prefix} recv: {message}")
 
@@ -332,8 +333,10 @@ class HypervoltApiClient:
                                 message, get_state_callback, on_state_updated_callback
                             )
 
-                        # If we get this far, we assume our connection is good and we can reset the back-off
-                        backoff_seconds = self.get_intial_backoff_delay_secs()
+                        msg_count += 1
+                        if msg_count > 3:
+                            # If we get this far, we assume our connection is good and we can reset the back-off
+                            backoff_seconds = self.get_intial_backoff_delay_secs()
 
                     _LOGGER.warning(
                         f"{log_prefix} iterator exited. Socket closed, code: {websocket.close_code}, reason: {websocket.close_reason}"
@@ -380,6 +383,9 @@ class HypervoltApiClient:
 
                         # Increase back-off for next time
                         backoff_seconds = self.increase_backoff_delay(backoff_seconds)
+
+                        # Attempt a re-login
+                        access_token = await self.login(session)
 
         except asyncio.CancelledError as exc:
             _LOGGER.debug(f"{log_prefix} cancelled (main try/catch)")
