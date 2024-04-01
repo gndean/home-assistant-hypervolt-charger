@@ -103,7 +103,7 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
                     self._hypervolt_coordinator.data.schedule_tz,
                 )
                 # Read back schedule from API so that we're up to date
-                await self._hypervolt_coordinator.api.update_state_from_schedule(
+                await self._hypervolt_coordinator.api.v2_update_state_from_schedule(
                     self._hypervolt_coordinator.api_session,
                     self._hypervolt_coordinator.data,
                 )

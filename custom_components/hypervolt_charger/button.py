@@ -35,34 +35,39 @@ class HypervoltApplyScheduleButton(HypervoltEntity, ButtonEntity):
         """Write the pending schedule to the API"""
         _LOGGER.info("Apply Schedule button pressed")
 
-        # Remove any new intervals that have no start or end time, or the same start and end time
-        self._hypervolt_coordinator.data.schedule_intervals_to_apply = [
-            interval
-            for interval in self._hypervolt_coordinator.data.schedule_intervals_to_apply
-            if interval
-            and interval.start_time
-            and interval.end_time
-            and interval.start_time != interval.end_time
-        ]
+        if self._hypervolt_coordinator.data.schedule_intervals_to_apply:
+            # Remove any new intervals that have no start or end time, or the same start and end time
+            self._hypervolt_coordinator.data.schedule_intervals_to_apply = [
+                interval
+                for interval in self._hypervolt_coordinator.data.schedule_intervals_to_apply
+                if interval
+                and interval.start_time
+                and interval.end_time
+                and interval.start_time != interval.end_time
+            ]
 
-        _LOGGER.info(
-            f"Setting {len(self._hypervolt_coordinator.data.schedule_intervals_to_apply)} schedule intervals"
-        )
+            _LOGGER.info(
+                f"Setting {len(self._hypervolt_coordinator.data.schedule_intervals_to_apply)} schedule intervals"
+            )
 
-        # Now set the new schedule back to the API
-        await self._hypervolt_coordinator.api.v2_set_schedule(
-            self._hypervolt_coordinator.api_session,
-            self._hypervolt_coordinator.data.activation_mode,
-            self._hypervolt_coordinator.data.schedule_intervals_to_apply,
-            self._hypervolt_coordinator.data.schedule_type,
-            self._hypervolt_coordinator.data.schedule_tz,
-        )
+            # Now set the new schedule back to the API
+            await self._hypervolt_coordinator.api.v2_set_schedule(
+                self._hypervolt_coordinator.api_session,
+                self._hypervolt_coordinator.data.activation_mode,
+                self._hypervolt_coordinator.data.schedule_intervals_to_apply,
+                self._hypervolt_coordinator.data.schedule_type,
+                self._hypervolt_coordinator.data.schedule_tz,
+            )
 
-        _LOGGER.info("Schedule applied. Reading back from API")
+            _LOGGER.info("Schedule applied. Reading back from API")
 
-        # Read back schedule from API so that we're synced with the API
-        await self._hypervolt_coordinator.force_update()
+            # Read back schedule from API so that we're synced with the API
+            await self._hypervolt_coordinator.force_update()
 
-        _LOGGER.info(
-            f"Read back {len(self._hypervolt_coordinator.data.schedule_intervals)} schedule intervals"
-        )
+            _LOGGER.info(
+                f"Read back {len(self._hypervolt_coordinator.data.schedule_intervals)} schedule intervals"
+            )
+        else:
+            _LOGGER.warning(
+                "Trying to apply schedule but there are no schedule intervals to apply"
+            )

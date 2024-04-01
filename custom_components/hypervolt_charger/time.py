@@ -80,8 +80,11 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
         # First create an array of the max size, and fill it with the existing values
         new_intervals: list[HypervoltScheduleInterval] = [None] * NUM_SCHEDULE_INTERVALS
         intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
-        for i, interval in enumerate(intervals):
-            new_intervals[i] = deepcopy(interval)
+        if intervals:
+            for i, interval in enumerate(intervals):
+                new_intervals[i] = deepcopy(interval)
+        else:
+            new_intervals = [None] * NUM_SCHEDULE_INTERVALS
 
         # Now set the new value
         if not new_intervals[self.interval_index]:

@@ -19,6 +19,7 @@ from .hypervolt_device_state import (
     HypervoltLockState,
     HypervoltReleaseState,
     HypervoltScheduleInterval,
+    HypervoltDayOfWeek,
 )
 from .timestamped_queue import TimestampedQueue
 
@@ -130,10 +131,10 @@ class HypervoltApiClient:
                 )
                 raise InvalidAuth
 
-    async def update_state_from_schedule(
+    async def v2_update_state_from_schedule(
         self, session: aiohttp.ClientSession, state: HypervoltDeviceState
     ) -> HypervoltDeviceState:
-        """Use API to update the state. Raise exception on error"""
+        """V2 charger only. Use API to update the state. Raise exception on error."""
 
         async with session.get(
             f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule"
@@ -248,8 +249,10 @@ class HypervoltApiClient:
 
                 if on_state_updated_callback:
                     on_state_updated_callback(state)
-            elif method in ("schedule.get", "schedule.set"):
-                self.on_message_schedules(result, state)
+            # This appears to be an inconsistency with HV's naming: we get schedules (plural) but set schedule (singular).
+            # In both cases, we get or set an array of sessions.
+            elif method in ("schedules.get", "schedule.set"):
+                self.on_message_schedule(result, state)
 
                 if on_state_updated_callback:
                     on_state_updated_callback(state)
@@ -765,7 +768,7 @@ class HypervoltApiClient:
         # Trim queue down to window size
         self.session_total_energy_snapshots_queue.delete_old_elements(window_size_ms)
 
-    def on_message_schedules(self, result: dict, state: HypervoltDeviceState):
+    def on_message_schedule(self, result: dict, state: HypervoltDeviceState):
         """V3 only. Handle an update to the schedule."""
         applied = result.get("applied", None)
         if applied:
@@ -776,6 +779,24 @@ class HypervoltApiClient:
                     if schedule_enabled
                     else HypervoltActivationMode.PLUG_AND_CHARGE
                 )
+            if "sessions" in applied:
+                state.schedule_intervals = []
+                for session in applied["sessions"]:
+                    days_of_week = 0
+                    for day in session.get("days", []):
+                        days_of_week |= HypervoltDayOfWeek[day.upper()].value
+
+                    state.schedule_intervals.append(
+                        HypervoltScheduleInterval(
+                            datetime.time.fromisoformat(session["start_time"]),
+                            datetime.time.fromisoformat(session["end_time"]),
+                            HypervoltChargeMode[session["mode"].upper()],
+                            days_of_week,
+                        )
+                    )
+
+                # Copy to schedule_intervals_to_apply
+                state.schedule_intervals_to_apply = deepcopy(state.schedule_intervals)
 
     async def v3_set_schedule_enabled(self, schedule_enabled: bool):
         """V3 only. Set the schedule enabled/disabled"""

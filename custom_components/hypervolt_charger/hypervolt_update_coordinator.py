@@ -89,7 +89,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 # If we're a v2 charger, we need to request the schedule via a specific endpoint
                 if self.api.get_charger_major_version() == 2:
                     _LOGGER.debug("Active session found, updating state")
-                    state = await self.api.update_state_from_schedule(
+                    state = await self.api.v2_update_state_from_schedule(
                         self.api_session, self.data
                     )
 
@@ -130,19 +130,19 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     )
                 )
 
-                # if self.api.get_charger_major_version() == 2:
-                #     # Version 2 sends messages when a session is in progress via in-progress websocket
-                #     # Version 3 uses the sync websocket for everything
-                #     self.notify_on_hypervolt_session_in_progress_push_task = (
-                #         asyncio.create_task(
-                #             self.api.notify_on_hypervolt_session_in_progress_websocket(
-                #                 self.api_session,
-                #                 access_token,
-                #                 self.get_state,
-                #                 self.on_state_updated,
-                #             )
-                #         )
-                #     )
+                if self.api.get_charger_major_version() == 2:
+                    # Version 2 sends messages when a session is in progress via in-progress websocket
+                    # Version 3 uses the sync websocket for everything
+                    self.notify_on_hypervolt_session_in_progress_push_task = (
+                        asyncio.create_task(
+                            self.api.notify_on_hypervolt_session_in_progress_websocket(
+                                self.api_session,
+                                access_token,
+                                self.get_state,
+                                self.on_state_updated,
+                            )
+                        )
+                    )
 
                 return await self._update_with_fallback(False)
             else:

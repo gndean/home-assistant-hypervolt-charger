@@ -29,12 +29,31 @@ class HypervoltReleaseState(Enum):
     RELEASED = 1
 
 
+class HypervoltDayOfWeek(Enum):
+    MONDAY = 1
+    TUESDAY = 2
+    WEDNESDAY = 4
+    THURSDAY = 8
+    FRIDAY = 16
+    SATURDAY = 32
+    SUNDAY = 64
+    ALL = 127
+
+
 class HypervoltScheduleInterval:
     def __init__(
-        self, start_time: time, end_time: time
+        self,
+        start_time: time,
+        end_time: time,
+        charge_mode: HypervoltChargeMode = HypervoltChargeMode.BOOST,
+        days_of_week: int = HypervoltDayOfWeek.ALL,
     ) -> None:
         self.start_time = start_time
         self.end_time = end_time
+
+        # V3 specific fields
+        self.charge_mode = charge_mode
+        self.days_of_week = days_of_week
 
 
 class HypervoltDeviceState:
