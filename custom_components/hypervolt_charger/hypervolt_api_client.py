@@ -1,21 +1,23 @@
 from __future__ import annotations
 
+from copy import deepcopy
+import datetime
 import json
 import logging
 import random
-import websockets
-import datetime
-import aiohttp
 import asyncio
-from copy import deepcopy
+import aiohttp
+
+import websockets
 
 from homeassistant.exceptions import HomeAssistantError
+
 from .hypervolt_device_state import (
-    HypervoltDeviceState,
+    HypervoltActivationMode,
     HypervoltChargeMode,
+    HypervoltDeviceState,
     HypervoltLockState,
     HypervoltReleaseState,
-    HypervoltActivationMode,
     HypervoltScheduleInterval,
 )
 from .timestamped_queue import TimestampedQueue
@@ -40,9 +42,7 @@ class HypervoltApiClient:
         self.charger_id = charger_id
 
         self.websocket_sync: websockets.client.WebSocketClientProtocol = None
-        self.websocket_session_in_progress: websockets.client.WebSocketClientProtocol = (
-            None
-        )
+        self.websocket_session_in_progress: websockets.client.WebSocketClientProtocol = None
         self.unload_requested = False
         self.session_total_energy_snapshots_queue = TimestampedQueue(1000)
 
@@ -58,77 +58,48 @@ class HypervoltApiClient:
         if self.websocket_session_in_progress:
             await self.websocket_session_in_progress.close()
 
-    async def login(self, session: aiohttp.ClientSession):
+    async def login(self, session: aiohttp.ClientSession) -> str:
         """Attempt to log in using credentials from config.
-        Raises InvalidAuth or CannotConnect on failure"""
+        Raises InvalidAuth or CannotConnect on failure.
+        Returns the access token as a string on success."""
 
         try:
             session.headers["user-agent"] = self.get_user_agent()
 
-            async with session.get("https://api.hypervolt.co.uk/login-url") as response:
+            async with session.post(
+                "https://auth.hypervolt.co.uk/oauth/token",
+                data={
+                    "audience": "https://api.hypervolt.co.uk",
+                    "client_id": "1BfAeDNKfu7mfPWCm6XTsZeM2QYhhju2",  # Mimic mobile app. If Hypervolt are reading this: Please give the HA community our own Client ID and allow us to support the HA OAuth2 login flow
+                    "grant_type": "http://auth0.com/oauth/grant-type/password-realm",
+                    "realm": "Username-Password-Authentication",
+                    "scope": "openid profile email offline_access",
+                    "username": self.username,
+                    "password": self.password,
+                },
+            ) as response:
+                if response.status >= 200 and response.status < 300:
+                    _LOGGER.info("HypervoltApiClient logged in!")
 
-                login_base_url = json.loads(await response.text())["login"]
+                    response_text = await response.text()
+                    access_token = json.loads(response_text)["access_token"]
+                    session.headers["authorization"] = f"Bearer {access_token}"
 
-                _LOGGER.info("Login loading URL: %s",
-                             login_base_url.split("?")[0])
+                    # TODO: Handle refreshing the token
 
-                # This will cause a 302 redirect to a new URL that loads a login form
-                async with session.get(login_base_url) as response:
-                    if response.status == 200:
-                        login_form_url = response.url
-                        state = login_form_url.query["state"]
-                        login_form_data = {
-                            "state": state,
-                            "username": self.username,
-                            "password": self.password,
-                            "action": "default",
-                        }
-                        async with session.post(
-                            login_form_url,
-                            data=login_form_data,
-                        ) as response:
-                            if response.status == 200:
-                                _LOGGER.info("HypervoltApiClient logged in!")
+                    return access_token
 
-                                # Use session cookie as authorization token
-                                cookies = session.cookie_jar.filter_cookies(
-                                    "https://api.hypervolt.co.uk"
-                                )
-
-                                if "session" in cookies:
-                                    session.headers[
-                                        "authorization"
-                                    ] = f'Bearer {cookies["session"].value}'
-
-                                    session.cookie_jar.clear()
-                                else:
-                                    _LOGGER.warning(
-                                        "Unable to get session token. Auth may fail"
-                                    )
-                                return True
-
-                            elif response.status >= 400 and response.status < 500:
-                                _LOGGER.error(
-                                    "Authentication error when trying to log in, status code: %d",
-                                    response.status,
-                                )
-                                raise InvalidAuth
-                            else:
-                                response_text = await response.text()
-                                _LOGGER.error(
-                                    "Error: unable to get charger, status: %d, %s",
-                                    response.status,
-                                    response_text,
-                                )
-                                raise CannotConnect
-                    else:
-                        response_text = await response.text()
-                        _LOGGER.error(
-                            "Error: unable to login, status: %d, %s",
-                            response.status,
-                            response_text,
-                        )
-                        raise InvalidAuth
+                elif response.status >= 400 and response.status < 500:
+                    _LOGGER.error(
+                        f"Authentication error when trying to log in, status code: {response.status}"
+                    )
+                    raise InvalidAuth
+                else:
+                    response_text = await response.text()
+                    _LOGGER.error(
+                        f"Error: unable to login, status: {response.status}, {response_text}",
+                    )
+                    raise CannotConnect
 
         except InvalidAuth as exc:
             await session.close()
@@ -136,8 +107,6 @@ class HypervoltApiClient:
         except Exception as exc:
             await session.close()
             raise CannotConnect from exc
-
-        return session
 
     async def get_chargers(self, session):
         """Returns an array like: [{"charger_id": 123, "created": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
@@ -187,14 +156,13 @@ class HypervoltApiClient:
                     state.schedule_intervals.append(
                         HypervoltScheduleInterval(
                             datetime.time(
-                                start["hours"], start["minutes"], start["seconds"]),
-                            datetime.time(
-                                end["hours"], end["minutes"], end["seconds"]),
+                                start["hours"], start["minutes"], start["seconds"]
+                            ),
+                            datetime.time(end["hours"], end["minutes"], end["seconds"]),
                         )
                     )
                 # Copy to schedule_intervals_to_apply
-                state.schedule_intervals_to_apply = deepcopy(
-                    state.schedule_intervals)
+                state.schedule_intervals_to_apply = deepcopy(state.schedule_intervals)
 
             elif response.status == 401:
                 _LOGGER.warning("Update_state_from_schedule, unauthorised")
@@ -211,6 +179,7 @@ class HypervoltApiClient:
     async def notify_on_hypervolt_sync_websocket(
         self,
         session: aiohttp.ClientSession,
+        access_token: str,
         get_state_callback,
         on_state_updated_callback,
     ):
@@ -220,6 +189,7 @@ class HypervoltApiClient:
             f"notify_on_websocket sync, {asyncio.current_task().get_name()},",
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
             session,
+            access_token,
             get_state_callback,
             self.on_sync_websocket_connected,
             self.on_sync_websocket_message,
@@ -242,7 +212,9 @@ class HypervoltApiClient:
             res_array = None
             if "result" in jmsg:
                 res_array = jmsg["result"]
+                method = ""
             elif "params" in jmsg:
+                method = jmsg.get("method", "")
                 res_array = jmsg["params"]
 
             state = get_state_callback()
@@ -280,10 +252,16 @@ class HypervoltApiClient:
         except Exception as exc:
             _LOGGER.warning(f"On_sync_websocket_message_callback error ${exc}")
 
-    async def on_sync_websocket_connected(self, websocket):
+    async def on_sync_websocket_connected(self, websocket, access_token):
         self.websocket_sync = websocket
+        await self.send_sync_login_request(access_token)
+
         # Get a snapshot now first
-        await self.send_sync_snapshot_request()
+        # await self.send_sync_snapshot_request()
+
+        # if self.get_charger_major_version() >= 3:
+        #     await self.send_sync_schedule_request()
+        #     await self.send_sync_plugncharge_request()
 
     async def on_sync_websocket_closed(self):
         _LOGGER.debug("on_sync_websocket_closed")
@@ -294,6 +272,7 @@ class HypervoltApiClient:
         log_prefix: str,
         url: str,
         session: aiohttp.ClientSession,
+        access_token: str,
         get_state_callback,
         on_connected_callback,
         on_message_callback,
@@ -313,8 +292,6 @@ class HypervoltApiClient:
 
             async for websocket in websockets.connect(
                 url,
-                extra_headers={
-                    "authorization": session.headers["authorization"]},
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
                 user_agent_header=self.get_user_agent(),
@@ -325,12 +302,11 @@ class HypervoltApiClient:
                     # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
                     # need a secondary check, via the HypervoltApiClient
                     if self.unload_requested:
-                        _LOGGER.debug(
-                            f"{log_prefix} unload from connection loop")
+                        _LOGGER.debug(f"{log_prefix} unload from connection loop")
                         raise asyncio.CancelledError
 
                     if on_connected_callback:
-                        await on_connected_callback(websocket)
+                        await on_connected_callback(websocket, access_token)
 
                     # From: https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html#using-a-connection,
                     # The iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away)
@@ -341,8 +317,7 @@ class HypervoltApiClient:
                         # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
                         # need a secondary check, via the HypervoltApiClient
                         if self.unload_requested:
-                            _LOGGER.debug(
-                                f"{log_prefix} unload from message loop")
+                            _LOGGER.debug(f"{log_prefix} unload from message loop")
                             raise asyncio.CancelledError
 
                         # Pass message onto handler, also passing the callback to inform the caller of the updated state
@@ -398,14 +373,12 @@ class HypervoltApiClient:
                         await asyncio.sleep(backoff_seconds)
 
                         # Increase back-off for next time
-                        backoff_seconds = self.increase_backoff_delay(
-                            backoff_seconds)
+                        backoff_seconds = self.increase_backoff_delay(backoff_seconds)
 
         except asyncio.CancelledError as exc:
             _LOGGER.debug(f"{log_prefix} cancelled (main try/catch)")
         except Exception as exc:
-            _LOGGER.error(
-                f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
+            _LOGGER.error(f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
         finally:
             _LOGGER.debug(f"{log_prefix} exit")
 
@@ -420,6 +393,7 @@ class HypervoltApiClient:
     async def notify_on_hypervolt_session_in_progress_websocket(
         self,
         session: aiohttp.ClientSession,
+        access_token: str,
         get_state_callback,
         on_state_updated_callback,
     ):
@@ -429,6 +403,7 @@ class HypervoltApiClient:
             f"notify_on_websocket session/in-progress, {asyncio.current_task().get_name()},",
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
             session,
+            access_token,
             get_state_callback,
             self.on_session_in_progress_websocket_connected,
             self.on_session_in_progress_websocket_message,
@@ -436,13 +411,14 @@ class HypervoltApiClient:
             self.on_session_in_progress_websocket_closed,
         )
 
-    async def on_session_in_progress_websocket_connected(self, websocket):
+    async def on_session_in_progress_websocket_connected(
+        self, websocket, access_token: str
+    ):
         self.websocket_session_in_progress = websocket
 
     async def on_session_in_progress_websocket_message(
         self, message, get_state_callback, on_state_updated_callback
     ):
-
         try:
             # Example messages:
             # {"charging":false,"session":240,"milli_amps":32000,"true_milli_amps":0,"watt_hours":2371,"ccy_spent":34,"carbon_saved_grams":1036,"ct_current":0,"ct_power":0,"voltage":0}
@@ -551,12 +527,53 @@ class HypervoltApiClient:
                 "Send_message_to_sync cannot send because websocket_sync is not set"
             )
 
+    async def send_sync_login_request(self, access_token: str) -> bool:
+        """Log in via websocket. Returns true if the sync websocket is ready, false otherwise"""
+        if self.websocket_sync:
+            message = {
+                "id": self.get_next_message_id(),
+                "jsonrpc": "2.0",
+                "method": "login",
+                "params": {
+                    "token": access_token,
+                    "version": 2,
+                },
+            }
+            await self.send_message_to_sync(json.dumps(message))
+            return True
+        else:
+            return False
+
     async def send_sync_snapshot_request(self) -> bool:
         """Ask for a snapshot of the /sync state. Returns true if the sync websocket is ready, false otherwise"""
         if self.websocket_sync:
             message = {
                 "id": self.get_next_message_id(),
                 "method": "sync.snapshot",
+            }
+            await self.send_message_to_sync(json.dumps(message))
+            return True
+        else:
+            return False
+
+    async def send_sync_schedule_request(self) -> bool:
+        """Ask for a copy of the schedule. Returns true if the sync websocket is ready, false otherwise"""
+        if self.websocket_sync:
+            message = {
+                "id": self.get_next_message_id(),
+                "method": "schedules.get",
+            }
+            await self.send_message_to_sync(json.dumps(message))
+            return True
+        else:
+            return False
+
+    async def send_sync_plugncharge_request(self) -> bool:
+        """Ask for a copy of the plug and charge status. Returns true if the sync websocket is ready, false otherwise"""
+        if self.websocket_sync:
+            message = {
+                "id": self.get_next_message_id(),
+                "method": "plugncharge.get",
             }
             await self.send_message_to_sync(json.dumps(message))
             return True
@@ -670,3 +687,27 @@ class HypervoltApiClient:
 
     def get_user_agent(self) -> str:
         return f"home-assistant-hypervolt-charger/{self.version}"
+
+    def get_charger_major_version(self) -> int:
+        """Get the major version of the charger from the charger_id"""
+
+        try:
+            # Convert charger_id from decimal to hex and check how many bytes it corresponds to
+            # Round up to the nearest even number of bytes
+            charger_id_hex = hex(int(self.charger_id))[2:]
+            num_id_bytes = (len(charger_id_hex) + 1) // 2 * 2
+
+            if num_id_bytes == 12:
+                return 2
+            elif num_id_bytes == 16:
+                return 3
+            else:
+                _LOGGER.warning(f"Unknown charger version from id: {self.charger_id}")
+                # Take a guess
+                return 3
+        except Exception:
+            _LOGGER.warning(
+                f"Error parsing id to get charger version: {self.charger_id}"
+            )
+            # Take a guess
+            return 3
