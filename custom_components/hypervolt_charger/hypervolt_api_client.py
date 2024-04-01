@@ -240,7 +240,7 @@ class HypervoltApiClient:
 
             if method == "login":
                 await self.on_message_login(result)
-            elif method == "sync.snapshot":
+            elif method == "sync.snapshot" or method == "sync.apply":
                 self.on_message_sync_snapshot(result, state)
 
                 if on_state_updated_callback:
