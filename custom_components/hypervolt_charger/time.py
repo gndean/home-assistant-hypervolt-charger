@@ -8,14 +8,12 @@ from homeassistant.config_entries import ConfigEntry
 
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
-from .hypervolt_device_state import HypervoltScheduleInterval
+from .hypervolt_device_state import HypervoltScheduleInterval, NUM_SCHEDULE_INTERVALS
 from .const import DOMAIN
 
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-
-NUM_SCHEDULE_INTERVALS = 4
 
 
 async def async_setup_entry(
@@ -28,17 +26,18 @@ async def async_setup_entry(
     # Create a switch for each schedule interval
     switches = []
     for interval_index in range(NUM_SCHEDULE_INTERVALS):
-        switches.append(
-            HypervoltScheduleTime(coordinator, True, interval_index)
-        )
-        switches.append(
-            HypervoltScheduleTime(coordinator, False, interval_index)
-        )
+        switches.append(HypervoltScheduleTime(coordinator, True, interval_index))
+        switches.append(HypervoltScheduleTime(coordinator, False, interval_index))
     async_add_entities(switches)
 
 
 class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
-    def __init__(self, coordinator: HypervoltUpdateCoordinator, is_start_time: bool, interval_index: int) -> None:
+    def __init__(
+        self,
+        coordinator: HypervoltUpdateCoordinator,
+        is_start_time: bool,
+        interval_index: int,
+    ) -> None:
         super(HypervoltScheduleTime, self).__init__(coordinator)
 
         self._attr_native_value = None
@@ -60,8 +59,16 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
         """Return the start or end time defined in the schedule, or None if the session doesn't exist."""
         intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
         tm = None
-        if len(intervals) > self.interval_index and intervals[self.interval_index]:
-            tm = intervals[self.interval_index].start_time if self.is_start_time else intervals[self.interval_index].end_time
+        if (
+            intervals
+            and len(intervals) > self.interval_index
+            and intervals[self.interval_index]
+        ):
+            tm = (
+                intervals[self.interval_index].start_time
+                if self.is_start_time
+                else intervals[self.interval_index].end_time
+            )
 
         return tm
 
@@ -69,16 +76,17 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
         """Set the start or end time defined in the schedule."""
 
         # First create an array of the max size, and fill it with the existing values
-        new_intervals: list[HypervoltScheduleInterval] = [
-            None] * NUM_SCHEDULE_INTERVALS
+        new_intervals: list[HypervoltScheduleInterval] = [None] * NUM_SCHEDULE_INTERVALS
         intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
-        for i, interval in enumerate(intervals):
-            new_intervals[i] = deepcopy(interval)
+        if intervals:
+            for i, interval in enumerate(intervals):
+                new_intervals[i] = deepcopy(interval)
 
         # Now set the new value
         if not new_intervals[self.interval_index]:
             new_intervals[self.interval_index] = HypervoltScheduleInterval(
-                time(), time())
+                time(), time()
+            )
 
         if self.is_start_time:
             new_intervals[self.interval_index].start_time = value

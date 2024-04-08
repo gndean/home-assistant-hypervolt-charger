@@ -21,7 +21,8 @@ PLATFORMS: list[Platform] = [
     Platform.NUMBER,
     Platform.SELECT,
     Platform.TIME,
-    Platform.BUTTON
+    Platform.BUTTON,
+    Platform.TEXT,
 ]
 
 _LOGGER = logging.getLogger(__name__)
