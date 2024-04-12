@@ -75,7 +75,7 @@ class HypervoltApiClient:
             session.headers["user-agent"] = self.get_user_agent()
 
             async with session.post(
-                "https://kc.hypervolt.co.uk/realms/retail-customers/protocol/openid-connect/token",
+                "https://kc.prod.hypervolt.co.uk/realms/retail-customers/protocol/openid-connect/token",
                 data={
                     "client_id": "home-assistant",  # Mimic mobile app. If Hypervolt are reading this: Please give the HA community our own Client ID and allow us to support the HA OAuth2 login flow
                     "grant_type": "password",
