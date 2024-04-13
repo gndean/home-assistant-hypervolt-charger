@@ -783,17 +783,18 @@ class HypervoltApiClient:
             oldest_energy_value = (
                 self.session_total_energy_snapshots_queue.head_element()
             )
-            age_ms = oldest_energy_value.age_ms()
-            if age_ms > 10000:  # 10 seconds
-                energy_diff_wh = (
-                    state.session_watthours_total_increasing - oldest_energy_value.value
-                )
-                state.current_session_power = int(
-                    energy_diff_wh / (age_ms / 1000.0 / 3600.0)
-                )
-            else:
-                # Not enough data points to update the power. Keep current value
-                pass
+            if oldest_energy_value:
+                age_ms = oldest_energy_value.age_ms()
+                if age_ms > 10000:  # 10 seconds
+                    energy_diff_wh = (
+                        state.session_watthours_total_increasing - oldest_energy_value.value
+                    )
+                    state.current_session_power = int(
+                        energy_diff_wh / (age_ms / 1000.0 / 3600.0)
+                    )
+                else:
+                    # Not enough data points to update the power. Keep current value
+                    pass
 
         else:
             state.current_session_power = 0
