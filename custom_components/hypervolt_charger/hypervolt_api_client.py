@@ -77,7 +77,7 @@ class HypervoltApiClient:
             async with session.post(
                 "https://kc.prod.hypervolt.co.uk/realms/retail-customers/protocol/openid-connect/token",
                 data={
-                    "client_id": "home-assistant",  # Mimic mobile app. If Hypervolt are reading this: Please give the HA community our own Client ID and allow us to support the HA OAuth2 login flow
+                    "client_id": "home-assistant",
                     "grant_type": "password",
                     "scope": "openid profile email offline_access",
                     "username": self.username,
