@@ -93,6 +93,12 @@ One of:
 
 ⚠️ `Not Ready - Force Stopped` was added to overcome a gotcha with Hypervolt. If the user manually stops a charge by switching charging off via the app or integration, the Hypervolt charger remembers this state and if later is switched into Schedule Charge activation mode, the scheduled charge _will not automatically start_ as might be expected. To overcome this, the Charging switch needs to be manually toggled. This can be done when in Scheduled mode even outside of the schedule window and will switch the `Hypervolt Charging Readiness` state back to `Ready`. ⚠️ In the Hypervolt app, there doesn't appear to be a way of telling whether the charger is ready or not.
 
+## 👁 EV Power, House Power, Grid Power, Generation Power (Sensors)
+
+Power usage derived from the CT clamp(s), as reported by the Hypervolt app.
+
+ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
+
 ## 👁 Hypervolt Voltage, Hypervolt Charger Current (Sensors)
 
 _Only available during a charging session_, these represent the voltage and current from the Hypervolt charger.
@@ -103,7 +109,7 @@ _Only available during a charging session_, these represent the voltage and curr
 
 ## 👁 Hypervolt CT Current, Hypervolt CT Power (Sensors)
 
-_For Hypervolt 2.0 devices: Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
+_Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
 
 ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
 
