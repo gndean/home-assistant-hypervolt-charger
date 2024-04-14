@@ -106,6 +106,38 @@ async def async_setup_entry(
             state_class=SensorStateClass.MEASUREMENT,
             unit_of_measure=UnitOfPower.WATT,
         ),
+        HypervoltSensor(
+            coordinator,
+            "EV Power",
+            "ev_power",
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=UnitOfPower.WATT,
+        ),
+        HypervoltSensor(
+            coordinator,
+            "House Power",
+            "house_power",
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=UnitOfPower.WATT,
+        ),
+        HypervoltSensor(
+            coordinator,
+            "Grid Power",
+            "grid_power",
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=UnitOfPower.WATT,
+        ),
+        HypervoltSensor(
+            coordinator,
+            "Generation Power",
+            "generation_power",
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            unit_of_measure=UnitOfPower.WATT,
+        ),
         ChargingReadinessSensor(coordinator),
     ]
 

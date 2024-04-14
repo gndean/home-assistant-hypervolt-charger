@@ -730,8 +730,6 @@ class HypervoltApiClient:
             state.session_id = result["session"]
         if "watt_hours" in result:
             state.session_watthours = result["watt_hours"]
-        if "ccy_spent" in result:
-            state.session_currency_spent = result["ccy_spent"]
         if "carbon_saved_grams" in result:
             state.session_carbon_saved_grams = result["carbon_saved_grams"]
 
@@ -739,10 +737,24 @@ class HypervoltApiClient:
             state.current_session_current_milliamps = result["true_milli_amps"]
         if "ct_current" in result:
             state.current_session_ct_current = result["ct_current"]
-        if "ct_power" in result:
-            state.current_session_ct_power = result["ct_power"]
         if "voltage" in result:
             state.current_session_voltage = result["voltage"]
+        if "ct_power" in result:
+            # Not seen outside of the old session/in-progress websocket
+            state.current_session_ct_power = result["ct_power"]
+        if "ct_current" in result and "voltage" in result:
+            # Reproduce old ct_power field from ct_current and voltage
+            state.current_session_ct_power = (
+                state.current_session_voltage * result["ct_current"] / 1000 # Convert mA to A
+            )
+        if "ev_power" in result:
+            state.ev_power = result["ev_power"]
+        if "house_power" in result:
+            state.house_power = result["house_power"]
+        if "grid_power" in result:
+            state.grid_power = result["grid_power"]
+        if "generation_power" in result:
+            state.generation_power = result["generation_power"]
 
         # Calculate derived field: session_watthours_total_increasing
         if (
@@ -769,7 +781,7 @@ class HypervoltApiClient:
                 )
         else:
             _LOGGER.debug(
-                "on_session_in_progress_websocket_message_callback new charging session detected"
+                "on_message_session new charging session detected"
             )
 
             # This is a new session, reset the value
