@@ -53,7 +53,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     if coordinator is None:
                         _LOGGER.debug(f"Unknown config_id {config_id}")
                     else:
-                        timezone = tz.gettz(coordinator.data.schedule_tz)
+                        timezone = get_time_zone(coordinator.data.schedule_tz)
                         break
 
             else:
@@ -90,7 +90,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             for block in scheduled_blocks:
                 # Only append blocks that haven't already finished. Backup will be appended
                 # regardless. Modify timezone to match the existing scheduler tz data
-                if now() < block["end"]:
+                if now() < block["end"].astimezone(timezone):
                     _LOGGER.debug(f"Start: {block['start']}")
                     start = block["start"].astimezone(timezone)
                     _LOGGER.debug(f"Start tz adjusted: {start}")
