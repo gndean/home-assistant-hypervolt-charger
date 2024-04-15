@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry
 from homeassistant.util.dt import (now, get_time_zone, parse_time)
+from dateutil import tz
 
 from .const import DOMAIN
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
