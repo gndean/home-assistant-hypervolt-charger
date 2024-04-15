@@ -75,6 +75,10 @@ class HypervoltDeviceState:
         self.current_session_ct_current = None
         self.current_session_ct_power = None
         self.current_session_voltage = None
+        self.ev_power = None
+        self.house_power = None
+        self.grid_power = None
+        self.generation_power = None
         self.led_brightness = None
         self.lock_state: HypervoltLockState = None
         self.charge_mode: HypervoltChargeMode = None
