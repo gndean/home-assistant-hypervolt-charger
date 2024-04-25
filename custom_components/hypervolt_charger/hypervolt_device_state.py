@@ -50,7 +50,7 @@ class HypervoltScheduleInterval:
         start_time: time,
         end_time: time,
         charge_mode: HypervoltChargeMode = HypervoltChargeMode.BOOST,
-        days_of_week: int = HypervoltDayOfWeek.ALL,
+        days_of_week: int = HypervoltDayOfWeek.ALL.value,
     ) -> None:
         self.start_time = start_time
         self.end_time = end_time
