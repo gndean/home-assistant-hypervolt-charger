@@ -6,7 +6,7 @@ import time as __time
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry
 from homeassistant.util.dt import (now, get_time_zone, parse_time)
@@ -24,7 +24,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     """Service handler setup."""
     _LOGGER.debug("Setting up schedule service")
 
-    async def async_set_schedule(service: ha.ServiceCall) -> None:
+    async def async_set_schedule(service: ServiceCall) -> None:
         _LOGGER.info(f"Setting schedule intervals")
 
         dev_reg = device_registry.async_get(hass)
