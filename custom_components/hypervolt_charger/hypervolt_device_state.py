@@ -87,6 +87,7 @@ class HypervoltDeviceState:
         self.schedule_intervals: list[HypervoltScheduleInterval] = None
         self.schedule_tz = None
         self.schedule_type = None
+        self.car_plugged = None
 
         # The schedule intervals to apply when the Apply button is pressed
         # These can be edited via the Start/End Time time entities but only

@@ -255,6 +255,20 @@ class HypervoltApiClient:
 
                 if on_state_updated_callback:
                     on_state_updated_callback(state)
+            elif method == "get.pilot_status":
+                if "pilot_status" in result:
+                    # https://en.wikipedia.org/wiki/SAE_J1772#Control_Pilot
+                    # A = Not plugged in
+                    # B = Plugged in, not charging
+                    # C = Plugged in, charging
+                    # Ignore any other values
+                    if result["pilot_status"] in ("B", "C"):
+                        state.car_plugged = True
+                    elif result["pilot_status"] == "A":
+                        state.car_plugged = False
+
+                if on_state_updated_callback:
+                    on_state_updated_callback(state)
             else:
                 _LOGGER.debug(
                     "On_sync_websocket_message_callback ignored message: %s",
@@ -745,7 +759,9 @@ class HypervoltApiClient:
         if "ct_current" in result and "voltage" in result:
             # Reproduce old ct_power field from ct_current and voltage
             state.current_session_ct_power = (
-                state.current_session_voltage * result["ct_current"] / 1000 # Convert mA to A
+                state.current_session_voltage
+                * result["ct_current"]
+                / 1000  # Convert mA to A
             )
         if "ev_power" in result:
             state.ev_power = result["ev_power"]
@@ -780,9 +796,7 @@ class HypervoltApiClient:
                     state.session_watthours_total_increasing
                 )
         else:
-            _LOGGER.debug(
-                "on_message_session new charging session detected"
-            )
+            _LOGGER.debug("on_message_session new charging session detected")
 
             # This is a new session, reset the value
             state.session_watthours_total_increasing = 0
@@ -797,7 +811,8 @@ class HypervoltApiClient:
                 age_ms = oldest_energy_value.age_ms()
                 if age_ms > 10000:  # 10 seconds
                     energy_diff_wh = (
-                        state.session_watthours_total_increasing - oldest_energy_value.value
+                        state.session_watthours_total_increasing
+                        - oldest_energy_value.value
                     )
                     state.current_session_power = int(
                         energy_diff_wh / (age_ms / 1000.0 / 3600.0)
