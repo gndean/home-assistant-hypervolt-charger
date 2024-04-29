@@ -1,4 +1,5 @@
 """The Hypervolt Charger integration."""
+
 from __future__ import annotations
 
 import logging
@@ -21,6 +22,7 @@ PLATFORMS: list[Platform] = [
     Platform.TIME,
     Platform.BUTTON,
     Platform.TEXT,
+    Platform.BINARY_SENSOR,
 ]
 
 _LOGGER = logging.getLogger(__name__)
