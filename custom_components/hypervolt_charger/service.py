@@ -128,7 +128,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         else:
             if backup_available:
                 _LOGGER.info(f"No scheduled blocks found, using backup {backup_start} - {backup_end}")
-                intervals.append(HypervoltScheduleInterval(backup_start, backup_end))
+                merged_intervals.append(HypervoltScheduleInterval(backup_start, backup_end))
 
         _LOGGER.debug(f"Timezone used: {timezone}")
 
