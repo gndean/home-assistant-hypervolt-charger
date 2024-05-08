@@ -30,104 +30,30 @@ The integration uses the hypervolt.co.uk APIs so is dependent on the cloud. Most
 
 # Entities
 
-The integration is intended to match the features of the iOS and Android apps. I've tried to keep the naming similar where possible. The entities exposed are:
+The integration is intended to match the features of the iOS and Android apps.
 
-## 🎚️ Hypervolt Charging (Switch)
-
-This allows the current charging state to be read and set. It matches the big Charging switch in the app.
-
-ℹ️ There is also the `Hypervolt Charging Readiness` sensor that gives slightly more information about the charge state.
-
-## 🎚️ Hypervolt Lock State (Switch)
-
-Matches the lock feature in the app and allows locking of the charger. The `Lock Pending` state is mapped to `On`
-
-## 🔽 Hypervolt Activation Mode (Select)
-
-Switches between
-
-- `Plug and Charge` and
-- `Schedule Charge`
-
-modes.
-
-ℹ️ Changes to this setting are not reflected in realtime within the integration or Hypervolt app. If changed externally to the integration its state should update to the correct state within 5 minutes.
-
-## 🕓 Hypervolt Schedule Session (n) Start/End Time
-
-Represents the schedule start/end time for the given session number. The values are populated from the Hypervolt servers and then can be modifed within Home Assistant.
-
-ℹ️ Session times are not changed until the `Apply Schedule` button is pressed. This allows start and end times to be modified individually and all changes applied at once, to avoid invalid or undesirable schedules being applied while interim changes are being made.
-
-ℹ️ To delete a session, set the start and the end time to be the same value. Once applied, the session will be removed.
-
-## ▶️ Hypervolt Apply Schedule button
-
-Press this button to apply the schedule session start and end times.
-
-Once successfully applied, the session times are read back from the API. This may cause the session time values to update, for example, any gaps in the sessions will be removed i.e. if session 1 and session 3 were populated only, once applied, session 1 and session 2 would be populated. Also any sessions where the start time equals the end time will be removed.
-
-ℹ️ Applying the session times does not automatically switch the Hypervolt into Schedule mode. For that, use the `Activation Mode` select
-
-## 🔽 Hypervolt Charge Mode (Select)
-
-Switches between `Boost`, `Eco` and `Super Eco` modes.
-
-## 🔢 Hypervolt Max Current (Number)
-
-Reads and sets the maximum charging current, in Amps.
-
-## 🔢 Hypervolt LED Brightness (Number)
-
-Reads and sets the LED brightness, in percent, as available via Settings within the app
-
-ℹ️ The LED Mode isn't currently supported by the integration
-
-## 👁 Hypervolt Charging Readiness (Sensor)
-
-One of:
-
-- `Charging`
-- `Ready`
-- `Not Ready - Force Stopped`
-
-⚠️ `Not Ready - Force Stopped` was added to overcome a gotcha with Hypervolt. If the user manually stops a charge by switching charging off via the app or integration, the Hypervolt charger remembers this state and if later is switched into Schedule Charge activation mode, the scheduled charge _will not automatically start_ as might be expected. To overcome this, the Charging switch needs to be manually toggled. This can be done when in Scheduled mode even outside of the schedule window and will switch the `Hypervolt Charging Readiness` state back to `Ready`. ⚠️ In the Hypervolt app, there doesn't appear to be a way of telling whether the charger is ready or not.
-
-## 👁 EV Power, House Power, Grid Power, Generation Power (Sensors)
-
-Power usage derived from the CT clamp(s), as reported by the Hypervolt app.
-
-ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
-
-## 👁 Hypervolt Voltage, Hypervolt Charger Current (Sensors)
-
-_Only available during a charging session_, these represent the voltage and current from the Hypervolt charger.
-
-ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
-
-⚠️ `Hypervolt Voltage` is not supported by version 3.0 chargers. It always reads as 0 ([issue 18](https://github.com/gndean/home-assistant-hypervolt-charger/issues/18)).
-
-## 👁 Hypervolt CT Current, Hypervolt CT Power (Sensors)
-
-_Only available during a charging session_, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt.
-
-ℹ️ This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given!
-
-## 👁 Hypervolt Session Carbon Saved, Hypervolt Session ID, Hypervolt Session Energy (Sensors)
-
-Are fields related to the current, or most recent charging session.
-
-⚠️ `Hypervolt Session Energy` just reports the session energy exactly from the Hypervolt APIs and resets for each new session. The value may be noisy i.e. decrease slightly during the charging session and will reset each charging session. For this reason, it is not a good choice to use for energy measurement within Home Assistant. For that, use `Hypervolt Session Energy Total Increasing` instead.
-
-## ⚡️ Hypervolt Session Energy Total Increasing (Sensor)
-
-This is a sensor of state class [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) which means that it is suitable for energy measurement within Home Assistant. Unlike `Hypervolt Session Energy`, the value is not taken directly from the Hypervolt APIs, cannot decrease during a session and will only reset on a new charging session, for which the [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) logic will handle. For a discussion of why this sensor was created, see [Sensor provides negative value when reset (HA Energy Dashboard) #5](https://github.com/gndean/home-assistant-hypervolt-charger/issues/5)
+| Name | Description | Notes |
+|------|-------------|-------|
+| Hypervolt Charging | Shows the current charging state. Used to matches the big Charging switch in the app when this existed. | ⚠️ The entity will be turned into a read-only sensor in a future release, as the HV app no longer supports the stopping of charging via a switch (instead change the Activation Mode) |
+| Hypervolt Charging Readiness | One of: `Charging`, `Ready`, `Not Ready - Force Stopped`. | ⚠️ Deprecated. Was added when the HV app had a charging switch that allowed charging to be stopped by toggling the switch. But then lead to a gotcha where charging would not resume. This entity will be removed in a future release.|
+| Hypervolt Car Plugged | Indicates whether the car is currently plugged into the charger. | ⚠️ V3 chargers only. |
+| Hypervolt Lock State | Matches the lock feature in the app and allows locking of the charger. The `Lock Pending` state is mapped to `On`. | |
+| Hypervolt Activation Mode | Switches between `Plug and Charge` and `Schedule Charge` modes. | Use to start/stop charging. ⚠️Changes to this setting are not always reflected in realtime within the integration or Hypervolt app. If changed externally to the integration its state should update to the correct state within 5 minutes. |
+| Hypervolt Charge Mode | Switches between `Boost`, `Eco`, and `Super Eco` modes. | |
+| Hypervolt Max Current | Reads and sets the maximum charging current, in Amps. | |
+| Hypervolt LED Brightness | Reads and sets the LED brightness, in percent, as available via Settings within the app. | The LED Mode isn't currently supported by the integration. |
+| Hypervolt Schedule Session (n) Start/End Time | Represents the schedule start/end time for the given session number. The values are populated from the Hypervolt servers and then can be modified within Home Assistant. | Session times are not changed until the `Apply Schedule` button is pressed. This allows start and end times to be modified individually and all changes applied at once, to avoid invalid or undesirable schedules being applied while interim changes are being made. To delete a session, set the start and the end time to be the same value. Once applied, the session will be removed. |
+| Hypervolt Schedule Session (n) Charg Mode | The charging mode for the session slot | ⚠️V3 chargers only. Sessions not changed until the `Apply Schedule` button is pressed. |
+| Hypervolt Apply Schedule button | Press this button to apply the schedule session start and end times. Once successfully applied, the session times are read back from the API. This may cause the session time values to update, for example, any gaps in the sessions will be removed i.e. if session 1 and session 3 were populated only, once applied, session 1 and session 2 would be populated. Also any sessions where the start time equals the end time will be removed. | Applying the session times does not automatically switch the Hypervolt into Schedule mode. For that, use the `Activation Mode` select. |
+| EV Power, House Power, Grid Power, Generation Power | Power usage derived from the CT clamp(s), as reported by the Hypervolt app. | For V3 devices, these values are reported even when there is no charging session. For V2 devices, these are only reported during a charging session. This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given! |
+| Hypervolt Voltage, Hypervolt Charger Current | Only available during a charging session, these represent the voltage and current from the Hypervolt charger. | This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given! |
+| Hypervolt CT Current, Hypervolt CT Power | Only available during a charging session, these represent the current and power seen by the external CT clamp so will typically measure the household, or at least, whole circuit load, not just the Hypervolt. | ⚠️ Use EV Power now, rather than CT Power. This integration just reports the values from the Hypervolt APIs. No assurance of accuracy of the values is given! |
+| Hypervolt Session Carbon Saved, Hypervolt Session ID, Hypervolt Session Energy | Are fields related to the current, or most recent charging session. | `Hypervolt Session Energy` just reports the session energy exactly from the Hypervolt APIs and resets for each new session. The value may be noisy i.e. decrease slightly during the charging session and will reset each charging session. For this reason, it is not a good choice to use for energy measurement within Home Assistant. For that, use `Hypervolt Session Energy Total Increasing` instead. |
+| Hypervolt Session Energy Total Increasing | This is a sensor of state class [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) which means that it is suitable for energy measurement within Home Assistant. Unlike `Hypervolt Session Energy`, the value is not taken directly from the Hypervolt APIs, cannot decrease during a session and will only reset on a new charging session, for which the [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) logic will handle. For a discussion of why this sensor was created, see [Sensor provides negative value when reset (HA Energy Dashboard) #5](https://github.com/gndean/home-assistant-hypervolt-charger/issues/5) |
 
 # Known limitations
 
-- Tested with version 2.0 and 3.0 Hypervolt home charge points. `Hypervolt Voltage` is not supported on 3.0 charge points.
 - Log in has to be via via email address and password. Google or Apple login not supported
 - The charger name is not supported. The Device name in Home Assistant will be your charger's serial
 - English language only
 - LED modes are not supported
-- Money spent calculations not supported. In December 2022, Hypervolt added tariff-aware calculations within the app. I will see if we can support this in a future release.

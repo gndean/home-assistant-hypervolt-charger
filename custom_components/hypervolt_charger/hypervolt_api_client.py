@@ -52,7 +52,6 @@ class HypervoltApiClient:
         self.websocket_sync_sent_messages = []
 
         self.unload_requested = False
-        self.session_total_energy_snapshots_queue = TimestampedQueue(1000)
 
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
@@ -773,59 +772,17 @@ class HypervoltApiClient:
             state.generation_power = result["generation_power"]
 
         # Calculate derived field: session_watthours_total_increasing
-        if (
-            not prev_session_id
-            or not state.session_id
-            or state.session_id == prev_session_id
-        ):
-            # Calculate the max seen session_watthours for this session
-            # Only do this if we're currently charging. This is to avoid the situation where
-            # HA restarts while not charging and we calculate a new value that is lower
-            # than the max we saw last session. Thus, on a restart of HA when not charging
-            # the value remains Unknown until the next charging session
-            if state.session_watthours and state.is_charging:
-                state.session_watthours_total_increasing = max(
-                    state.session_watthours_total_increasing
-                    if state.session_watthours_total_increasing
-                    else 0,
-                    state.session_watthours,
-                )
-
-                # Enqueue this energy value to help calculate the charger power
-                self.session_total_energy_snapshots_queue.add(
-                    state.session_watthours_total_increasing
-                )
-        else:
-            _LOGGER.debug("on_message_session new charging session detected")
-
-            # This is a new session, reset the value
-            state.session_watthours_total_increasing = 0
-
-        # Calculate derived field: current_session_power
-        window_size_ms = 5 * 60 * 1000  # 5 minutes
-        if state.is_charging and state.session_watthours_total_increasing:
-            oldest_energy_value = (
-                self.session_total_energy_snapshots_queue.head_element()
+        # This used to involve some complicated logic but now we just keep track of the max value
+        if state.is_charging:
+            state.session_watthours_total_increasing = max(
+                state.session_watthours_total_increasing
+                if state.session_watthours_total_increasing
+                else 0,
+                state.session_watthours,
             )
-            if oldest_energy_value:
-                age_ms = oldest_energy_value.age_ms()
-                if age_ms > 10000:  # 10 seconds
-                    energy_diff_wh = (
-                        state.session_watthours_total_increasing
-                        - oldest_energy_value.value
-                    )
-                    state.current_session_power = int(
-                        energy_diff_wh / (age_ms / 1000.0 / 3600.0)
-                    )
-                else:
-                    # Not enough data points to update the power. Keep current value
-                    pass
-
         else:
-            state.current_session_power = 0
+            state.session_watthours_total_increasing = None
 
-        # Trim queue down to window size
-        self.session_total_energy_snapshots_queue.delete_old_elements(window_size_ms)
 
     def on_message_schedule(self, result: dict, state: HypervoltDeviceState):
         """V3 only. Handle an update to the schedule."""

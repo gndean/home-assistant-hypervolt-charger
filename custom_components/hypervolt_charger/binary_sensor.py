@@ -22,7 +22,9 @@ async def async_setup_entry(
 
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    async_add_entities([HypervoltCarPlugged(coordinator)])
+    if coordinator.api.get_charger_major_version() >= 3:
+        # Plugged status is only supported on version 3
+        async_add_entities([HypervoltCarPlugged(coordinator)])
 
 
 class HypervoltCarPlugged(HypervoltEntity, BinarySensorEntity):
