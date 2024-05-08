@@ -21,7 +21,6 @@ from .hypervolt_device_state import (
     HypervoltScheduleInterval,
     HypervoltDayOfWeek,
 )
-from .timestamped_queue import TimestampedQueue
 from .utils import get_days_from_days_of_week
 
 _LOGGER = logging.getLogger(__name__)
