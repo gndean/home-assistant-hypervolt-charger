@@ -53,7 +53,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
 
-        self.api_session = aiohttp.ClientSession()
+        self.api_session = None
         self.data = HypervoltDeviceState(self.api.charger_id)
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
@@ -81,6 +81,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             # If we have an active session, try and use that now
             # If that fails, we'll re-login
             if (
+                self.api_session and
                 not self.api_session.closed
                 and "authorization" in self.api_session.headers
             ):
