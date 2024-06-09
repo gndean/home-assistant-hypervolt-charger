@@ -167,6 +167,10 @@ class HypervoltApiClient:
                 _LOGGER.error(
                     f"Authentication error when trying to refresh token, status code: {response.status}"
                 )
+                # Don't attempt to use the tokens again
+                self.access_token = None
+                self.refresh_token = None
+
                 raise InvalidAuth
             else:
                 response_text = await response.text()
