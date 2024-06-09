@@ -232,7 +232,8 @@ class HypervoltApiClient:
                 state.schedule_intervals_to_apply = deepcopy(state.schedule_intervals)
 
             elif response.status == 401:
-                _LOGGER.warning("Update_state_from_schedule, unauthorised")
+                # Don't log warning or error as we will see this when our access token expires
+                _LOGGER.info("Update_state_from_schedule, unauthorised")
                 raise InvalidAuth
             else:
                 _LOGGER.error(
@@ -411,7 +412,8 @@ class HypervoltApiClient:
                             # If we get this far, we assume our connection is good and we can reset the back-off
                             backoff_seconds = self.get_intial_backoff_delay_secs()
 
-                    _LOGGER.warning(
+                    # Don't log error or warning as we will see this when our access token expires
+                    _LOGGER.info(
                         f"{log_prefix} iterator exited. Socket closed, code: {websocket.close_code}, reason: {websocket.close_reason}"
                     )
 
