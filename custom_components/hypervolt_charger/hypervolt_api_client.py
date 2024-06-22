@@ -63,8 +63,11 @@ class HypervoltApiClient:
 
         if self.websocket_sync:
             await self.websocket_sync.close()
+        self.websocket_sync = None
+
         if self.websocket_session_in_progress:
             await self.websocket_session_in_progress.close()
+        self.websocket_session_in_progress = None
 
     async def login(self, session: aiohttp.ClientSession) -> str:
         """If we have an access token, attempt to refresh it.
@@ -83,6 +86,7 @@ class HypervoltApiClient:
             pass
 
         try:
+            _LOGGER.info("Attempting log in")
             session.headers["user-agent"] = self.get_user_agent()
 
             async with session.post(
@@ -142,42 +146,49 @@ class HypervoltApiClient:
         Store new self.access_token and self.refresh_token.
         Also sets the access token in the session and returns it."""
 
-        _LOGGER.info("Refreshing access token")
-        session.headers["user-agent"] = self.get_user_agent()
-        async with session.post(
-            "https://kc.prod.hypervolt.co.uk/realms/retail-customers/protocol/openid-connect/token",
-            data={
-                "client_id": "home-assistant",
-                "grant_type": "refresh_token",
-                "refresh_token": self.refresh_token
-            }
-        ) as response:
-            if response.status >= 200 and response.status < 300:
-                _LOGGER.info("Access token refreshed")
+        try:
+            _LOGGER.info("Attempting to refresh access token")
+            session.headers["user-agent"] = self.get_user_agent()
+            async with session.post(
+                "https://kc.prod.hypervolt.co.uk/realms/retail-customers/protocol/openid-connect/token",
+                data={
+                    "client_id": "home-assistant",
+                    "grant_type": "refresh_token",
+                    "refresh_token": self.refresh_token
+                }
+            ) as response:
+                if response.status >= 200 and response.status < 300:
+                    _LOGGER.info("Access token refreshed")
 
-                response_text = await response.text()
+                    response_text = await response.text()
 
-                self.refresh_token = json.loads(response_text)["refresh_token"]
-                self.access_token = json.loads(response_text)["access_token"]
-                session.headers["authorization"] = f"Bearer {self.access_token}"
+                    self.refresh_token = json.loads(response_text)["refresh_token"]
+                    self.access_token = json.loads(response_text)["access_token"]
+                    session.headers["authorization"] = f"Bearer {self.access_token}"
 
-                return self.access_token
+                    return self.access_token
 
-            elif response.status >= 400 and response.status < 500:
-                _LOGGER.error(
-                    f"Authentication error when trying to refresh token, status code: {response.status}"
-                )
-                # Don't attempt to use the tokens again
-                self.access_token = None
-                self.refresh_token = None
+                elif response.status >= 400 and response.status < 500:
+                    _LOGGER.warning(
+                        f"Authentication error when trying to refresh token, status code: {response.status}"
+                    )
+                    # Don't attempt to use the tokens again
+                    self.access_token = None
+                    self.refresh_token = None
 
-                raise InvalidAuth
-            else:
-                response_text = await response.text()
-                _LOGGER.error(
-                    f"Error: unable to refresh token, status: {response.status}, {response_text}",
-                )
-                raise CannotConnect
+                    raise InvalidAuth
+                else:
+                    response_text = await response.text()
+                    _LOGGER.warning(
+                        f"Error: unable to refresh token, status: {response.status}, {response_text}",
+                    )
+                    raise CannotConnect
+        except Exception as exc:
+            # Don't log as error or warning as this could just be a network issue
+            _LOGGER.info(
+                f"Unable to refresh token: {exc}",
+            )
+            raise
 
     async def get_chargers(self, session):
         """Returns an array like: [{"charger_id": 123, "created": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
@@ -341,7 +352,7 @@ class HypervoltApiClient:
                     message,
                 )
         except Exception as exc:
-            _LOGGER.warning(f"On_sync_websocket_message_callback error ${exc}")
+            _LOGGER.warning(f"On_sync_websocket_message_callback error {exc}")
 
     async def on_sync_websocket_connected(self, websocket, access_token):
         self.websocket_sync = websocket
@@ -442,7 +453,7 @@ class HypervoltApiClient:
                     task_cancelled = True
                     raise exc
                 except Exception as exc:
-                    _LOGGER.warning(f"{log_prefix} exception ${exc}")
+                    _LOGGER.warning(f"{log_prefix} exception {exc}")
                     continue
 
                 finally:

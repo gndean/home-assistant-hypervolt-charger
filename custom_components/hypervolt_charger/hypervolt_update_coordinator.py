@@ -84,6 +84,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 self.api_session and
                 not self.api_session.closed
                 and "authorization" in self.api_session.headers
+                and self.api.websocket_sync
             ):
                 # If we're a v3 charger, we don't need to do anything, as everything is synced
                 # via the sync websocket
