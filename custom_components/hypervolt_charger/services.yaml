@@ -1,9 +1,12 @@
 set_schedule:
+  name: Set Schedule
+  description: To be used by 🐙 Octopus Agile users with the Octopus Energy integration, specifically the Target Rates sensors which allow you to find the cheapest periods between two times
   target:
     device:
       integration: hypervolt_charger
   fields:
     tracker_rate:
+      name: Tracker Rate
       required: true
       description: Target tracker rate to schedule
       selector:
@@ -11,14 +14,17 @@ set_schedule:
           integration: octopus_energy
           domain: binary_sensor
     backup_schedule_start:
+      name: Backup Start
       description: Backup start time if time retrieval fails
       selector:
         time:
     backup_schedule_end:
+      name: Backup End
       description: Backup end time if start time retrieval fails
       selector:
         time:
     append_backup:
+      name: Append Backup
       required: true
       description: Append the backup period to the schedule
       selector:
