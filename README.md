@@ -53,9 +53,9 @@ The integration is intended to match the features of the iOS and Android apps.
 
 # Services
 
-## set_schedule
+## Set Schedule
 
-The set_schedule service is intended to be used by 🐙 Octopus Agile users with the [Octopus Energy](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy) integration, specifically the [Target Rates](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/setup/target_rate/) sensors which allow you to find the cheapest periods between two times. This allows an Agile user to set the schedule on the Hypervolt rather than switching the Hypervolt on or off based on the `binary_sensor`. This hopefully avoids failed charges due to cloud or connectivity outages that may occur overnight, and allows the user to check the schedule before settling down for bed 😴. A pseudo-intelligent automation could trigger when the car is plugged in (e.g. from a car integration), set a [dynamic target rate](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/services/#octopus_energyupdate_target_config) between the current time until the morning, schedule the Hypervolt for those periods, and send a notification to the phone with the intended charging periods.
+The Set Schedule service is intended to be used by 🐙 Octopus Agile users with the [Octopus Energy](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy) integration, specifically the [Target Rates](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/setup/target_rate/) sensors which allow you to find the cheapest periods between two times. This allows an Agile user to set the schedule on the Hypervolt rather than switching the Hypervolt on or off based on the `binary_sensor`. This hopefully avoids failed charges due to cloud or connectivity outages that may occur overnight, and allows the user to check the schedule before settling down for bed 😴. A pseudo-intelligent automation could trigger when the car is plugged in (e.g. from a car integration), set a [dynamic target rate](https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/services/#octopus_energyupdate_target_config) between the current time until the morning, schedule the Hypervolt for those periods, and send a notification to the phone with the intended charging periods.
 
 It has one target and 4 parameters:
 
