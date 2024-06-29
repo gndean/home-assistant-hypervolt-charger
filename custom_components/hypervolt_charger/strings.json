@@ -16,5 +16,29 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Set Schedule",
+      "description": "To be used by 🐙 Octopus Agile users with the Octopus Energy integration, specifically the Target Rates sensors which allow you to find the cheapest periods between two times",
+      "fields": {
+        "tracker_rate": {
+          "name": "Tracker Rate",
+          "description": "The binary_sensor target created by the Octopus Energy integration"
+        },
+        "backup_schedule_start": {
+          "name": "Backup Start",
+          "description": "A backup start period if no times are found in the target sensor, consider setting this to give you enough charge to get to work and back..."
+        },
+        "backup_schedule_end": {
+          "name": "Backup End",
+          "description": "Backup end period"
+        },
+        "append_backup": {
+          "name": "Append Backup",
+          "description": "If checked this will always append the backup schedule period to the schedule. For example, we could set 06:00-07:00 to allow morning pre-heat climate control to draw from the grid rather than battery"
+        }
+      }
+    }
   }
 }

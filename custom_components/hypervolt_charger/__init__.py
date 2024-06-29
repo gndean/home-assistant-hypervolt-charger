@@ -12,7 +12,6 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .utils import get_version_from_manifest
-
 from .service import async_setup_services
 
 # There should be a file for each of the declared platforms e.g. sensor.py
