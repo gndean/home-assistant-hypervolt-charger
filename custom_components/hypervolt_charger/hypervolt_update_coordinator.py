@@ -65,7 +65,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     async def _async_update_data(self):
         try:
             async with async_timeout.timeout(10):
-                return await self._update_with_fallback()
+                return await self._update()
         except InvalidAuth as exc:
             raise ConfigEntryAuthFailed() from exc
         except asyncio.TimeoutError as exc:
@@ -74,9 +74,16 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         except Exception as exc:
             raise UpdateFailed() from exc
 
-    async def _update_with_fallback(self, retry=True) -> HypervoltDeviceState:
+    async def _update(self) -> HypervoltDeviceState:
+        """Return updated data from the Hypervolt API.
+
+        For a V2 charger, we need to poll the schedule to get the current state
+        For a V3 charger, so long as we have a valid session, we can just return the current state as all state
+        is updated via the sync websocket.
+        If we're not logged in, we re-login and re-establish websockets (or do this for the first time)
+        """
         try:
-            _LOGGER.debug(f"Hypervolt _update_with_fallback enter, retry = {retry}")
+            _LOGGER.debug("Hypervolt _update enter")
 
             # If we have an active session, try and use that now
             # If that fails, we'll re-login
@@ -97,63 +104,57 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 else:
                     state = self.data
 
-            else:
-                _LOGGER.debug("No active session")
-                raise InvalidAuth
+                _LOGGER.debug("HypervoltCoordinator _update exit")
 
-            _LOGGER.debug(
-                f"HypervoltCoordinator _update_with_fallback exit, retry = {retry}"
-            )
+                return state
 
-            return state
+            raise InvalidAuth("No active session")
 
         except Exception as exc:
-            _LOGGER.debug(
-                f"HypervoltCoordinator _update_with_fallback, retry = {retry}, exception: {exc}"
-            )
-            if retry:
-                # Close websockets and session
-                if self.notify_on_hypervolt_sync_push_task:
-                    self.notify_on_hypervolt_sync_push_task.cancel()
+            _LOGGER.debug(f"HypervoltCoordinator _update, exception: {type(exc).__name__}: {str(exc)}")
+            # Close websockets and session
+            if self.notify_on_hypervolt_sync_push_task:
+                self.notify_on_hypervolt_sync_push_task.cancel()
 
-                if self.notify_on_hypervolt_session_in_progress_push_task:
-                    self.notify_on_hypervolt_session_in_progress_push_task.cancel()
+            if self.notify_on_hypervolt_session_in_progress_push_task:
+                self.notify_on_hypervolt_session_in_progress_push_task.cancel()
 
-                if self.api_session:
-                    await self.api_session.close()
+            if self.api_session:
+                await self.api_session.close()
 
-                self.api_session = aiohttp.ClientSession()
-                access_token = await self.api.login(self.api_session)
+            self.api_session = aiohttp.ClientSession()
+            access_token = await self.api.login(self.api_session)
 
-                self.notify_on_hypervolt_sync_push_task = asyncio.create_task(
-                    self.api.notify_on_hypervolt_sync_websocket(
-                        self.api_session,
-                        access_token,
-                        self.get_state,
-                        self.on_state_updated,
-                    )
+            self.notify_on_hypervolt_sync_push_task = asyncio.create_task(
+                self.api.notify_on_hypervolt_sync_websocket(
+                    self.api_session,
+                    access_token,
+                    self.get_state,
+                    self.on_state_updated,
                 )
+            )
 
-                if self.api.get_charger_major_version() == 2:
-                    # Version 2 sends messages when a session is in progress via in-progress websocket
-                    # Version 3 uses the sync websocket for everything
-                    self.notify_on_hypervolt_session_in_progress_push_task = (
-                        asyncio.create_task(
-                            self.api.notify_on_hypervolt_session_in_progress_websocket(
-                                self.api_session,
-                                access_token,
-                                self.get_state,
-                                self.on_state_updated,
-                            )
+            if self.api.get_charger_major_version() == 2:
+                # Version 2 sends messages when a session is in progress via in-progress websocket
+                # Version 3 uses the sync websocket for everything
+                self.notify_on_hypervolt_session_in_progress_push_task = (
+                    asyncio.create_task(
+                        self.api.notify_on_hypervolt_session_in_progress_websocket(
+                            self.api_session,
+                            access_token,
+                            self.get_state,
+                            self.on_state_updated,
                         )
                     )
-
-                return await self._update_with_fallback(False)
-            else:
-                _LOGGER.debug(
-                    f"HypervoltCoordinator _update_with_fallback, retry = {retry}, returning self.data"
                 )
 
+                state = await self.api.v2_update_state_from_schedule(
+                    self.api_session, self.data
+                )
+                _LOGGER.debug(f"HypervoltCoordinator _update returning state from v2_update_state_from_schedule")
+                return state
+            else:
+                _LOGGER.debug(f"HypervoltCoordinator _update returning current state")
                 return self.data
 
     async def async_unload(self):
