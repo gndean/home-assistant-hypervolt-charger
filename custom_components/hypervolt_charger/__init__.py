@@ -13,6 +13,8 @@ from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .utils import get_version_from_manifest
 
+from .service import async_setup_services
+
 # There should be a file for each of the declared platforms e.g. sensor.py
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -33,6 +35,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     _LOGGER.debug("Async_setup enter")
 
     hass.data.setdefault(DOMAIN, {})
+
+    # Services
+    await async_setup_services(hass)
+
     return True
 
 
@@ -71,7 +77,6 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
             await coordinator.async_unload()
 
         raise ConfigEntryNotReady from exc
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
