@@ -53,6 +53,7 @@ class HypervoltApiClient:
         self.unload_requested = False
         self.access_token = None
         self.refresh_token = None
+        self.access_token_expires_at = None
 
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
@@ -103,22 +104,9 @@ class HypervoltApiClient:
                     _LOGGER.info("HypervoltApiClient logged in!")
 
                     response_text = await response.text()
+                    response_dict = json.loads(response_text)
 
-                    # {
-                    # "access_token": "<jwt>",
-                    # "expires_in": 3600,
-                    # "refresh_expires_in": 0,
-                    # "refresh_token": "<jwt>",
-                    # "token_type": "Bearer",
-                    # "id_token": "<jwt>",
-                    # "not-before-policy": 0,
-                    # "session_state": "<UUID>",
-                    # "scope": "openid profile social offline_access email"
-                    # }
-
-                    self.refresh_token = json.loads(response_text)["refresh_token"]
-                    self.access_token = json.loads(response_text)["access_token"]
-                    session.headers["authorization"] = f"Bearer {self.access_token}"
+                    self.update_from_token_response(session, response_dict)
 
                     return self.access_token
 
@@ -154,17 +142,16 @@ class HypervoltApiClient:
                 data={
                     "client_id": "home-assistant",
                     "grant_type": "refresh_token",
-                    "refresh_token": self.refresh_token
-                }
+                    "refresh_token": self.refresh_token,
+                },
             ) as response:
                 if response.status >= 200 and response.status < 300:
                     _LOGGER.info("Access token refreshed")
 
                     response_text = await response.text()
+                    response_dict = json.loads(response_text)
 
-                    self.refresh_token = json.loads(response_text)["refresh_token"]
-                    self.access_token = json.loads(response_text)["access_token"]
-                    session.headers["authorization"] = f"Bearer {self.access_token}"
+                    self.update_from_token_response(session, response_dict)
 
                     return self.access_token
 
@@ -189,6 +176,37 @@ class HypervoltApiClient:
                 f"Unable to refresh token: {exc}",
             )
             raise
+
+    def update_from_token_response(
+        self, session: aiohttp.ClientSession, response_dict: dict
+    ):
+        """Update ourselves with the response from a login or token refresh call"""
+
+        # {
+        # "access_token": "<jwt>",
+        # "expires_in": 3600,
+        # "refresh_expires_in": 0,
+        # "refresh_token": "<jwt>",
+        # "token_type": "Bearer",
+        # "id_token": "<jwt>",
+        # "not-before-policy": 0,
+        # "session_state": "<UUID>",
+        # "scope": "openid profile social offline_access email"
+        # }
+
+        self.refresh_token = response_dict["refresh_token"]
+        self.access_token = response_dict["access_token"]
+        session.headers["authorization"] = f"Bearer {self.access_token}"
+
+        # Calculate the absolute time when the token expires
+        expires_in = response_dict["expires_in"]
+        self.access_token_expires_at = datetime.datetime.now(
+            datetime.UTC
+        ) + datetime.timedelta(seconds=expires_in)
+
+    def get_access_token_expiry(self) -> datetime.datetime:
+        """Return the expiry time of the access token"""
+        return self.access_token_expires_at
 
     async def get_chargers(self, session):
         """Returns an array like: [{"charger_id": 123, "created": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
@@ -861,7 +879,6 @@ class HypervoltApiClient:
             )
         else:
             state.session_watthours_total_increasing = None
-
 
     def on_message_schedule(self, result: dict, state: HypervoltDeviceState):
         """V3 only. Handle an update to the schedule."""

@@ -69,7 +69,9 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         return True
     except Exception as exc:
-        _LOGGER.error("Async_setup_entry exception: %s", exc)
+        _LOGGER.error(
+            f"Async_setup_entry exception:  {type(exc).__name__}: {str(exc)}", exc
+        )
         # Because we re-raise here, HA will retry async_setup_entry so we need
         # to make sure we clean up any existing coordinator
         if coordinator:

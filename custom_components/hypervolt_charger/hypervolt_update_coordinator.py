@@ -3,7 +3,7 @@ import logging
 import async_timeout
 import aiohttp
 
-from datetime import timedelta
+from datetime import timedelta, datetime, UTC
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -77,6 +77,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     async def _update(self) -> HypervoltDeviceState:
         """Return updated data from the Hypervolt API.
 
+        Refresh the access token if it's soon to expire.
         For a V2 charger, we need to poll the schedule to get the current state
         For a V3 charger, so long as we have a valid session, we can just return the current state as all state
         is updated via the sync websocket.
@@ -88,11 +89,23 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             # If we have an active session, try and use that now
             # If that fails, we'll re-login
             if (
-                self.api_session and
-                not self.api_session.closed
+                self.api_session
+                and not self.api_session.closed
                 and "authorization" in self.api_session.headers
                 and self.api.websocket_sync
             ):
+                # Check if our access token is about to expire
+                # and if so, proactively refresh it
+                seconds_to_expiry = (
+                    self.api.get_access_token_expiry() - datetime.now(UTC)
+                ).total_seconds()
+                if seconds_to_expiry < SCAN_INTERVAL.total_seconds() * 1.5:
+                    _LOGGER.debug(
+                        f"Access token is about to expire in {seconds_to_expiry:.0f} seconds, attempting to refresh it"
+                    )
+                    # login() will perform a token refresh in preference to a full login
+                    access_token = await self.api.login(self.api_session)
+
                 # If we're a v3 charger, we don't need to do anything, as everything is synced
                 # via the sync websocket
                 # If we're a v2 charger, we need to request the schedule via a specific endpoint
@@ -111,7 +124,9 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             raise InvalidAuth("No active session")
 
         except Exception as exc:
-            _LOGGER.debug(f"HypervoltCoordinator _update, exception: {type(exc).__name__}: {str(exc)}")
+            _LOGGER.debug(
+                f"HypervoltCoordinator _update, exception: {type(exc).__name__}: {str(exc)}"
+            )
             # Close websockets and session
             if self.notify_on_hypervolt_sync_push_task:
                 self.notify_on_hypervolt_sync_push_task.cancel()
@@ -151,7 +166,9 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 state = await self.api.v2_update_state_from_schedule(
                     self.api_session, self.data
                 )
-                _LOGGER.debug(f"HypervoltCoordinator _update returning state from v2_update_state_from_schedule")
+                _LOGGER.debug(
+                    f"HypervoltCoordinator _update returning state from v2_update_state_from_schedule"
+                )
                 return state
             else:
                 _LOGGER.debug(f"HypervoltCoordinator _update returning current state")
