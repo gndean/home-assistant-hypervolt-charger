@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import datetime
+from datetime import datetime, timedelta, time, UTC
 import json
 import logging
 import random
@@ -53,7 +53,7 @@ class HypervoltApiClient:
         self.unload_requested = False
         self.access_token = None
         self.refresh_token = None
-        self.access_token_expires_at = None
+        self.access_token_expires_at_date: datetime = None
 
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
@@ -200,13 +200,14 @@ class HypervoltApiClient:
 
         # Calculate the absolute time when the token expires
         expires_in = response_dict["expires_in"]
-        self.access_token_expires_at = datetime.datetime.now(
-            datetime.UTC
-        ) + datetime.timedelta(seconds=expires_in)
 
-    def get_access_token_expiry(self) -> datetime.datetime:
+        self.access_token_expires_at_date = datetime.now(UTC) + timedelta(
+            seconds=expires_in
+        )
+
+    def get_access_token_expiry(self) -> datetime:
         """Return the expiry time of the access token"""
-        return self.access_token_expires_at
+        return self.access_token_expires_at_date
 
     async def get_chargers(self, session):
         """Returns an array like: [{"charger_id": 123, "created": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
@@ -255,10 +256,8 @@ class HypervoltApiClient:
 
                     state.schedule_intervals.append(
                         HypervoltScheduleInterval(
-                            datetime.time(
-                                start["hours"], start["minutes"], start["seconds"]
-                            ),
-                            datetime.time(end["hours"], end["minutes"], end["seconds"]),
+                            time(start["hours"], start["minutes"], start["seconds"]),
+                            time(end["hours"], end["minutes"], end["seconds"]),
                         )
                     )
                 # Copy to schedule_intervals_to_apply
@@ -674,7 +673,8 @@ class HypervoltApiClient:
         await self.send_message_to_sync(message)
 
     def get_next_message_id(self) -> str:
-        timestamp = datetime.datetime.utcnow().timestamp()
+        """Get a unique message id for the next message to send to the websocket"""
+        timestamp = datetime.now(UTC).timestamp()
         return f"{int(timestamp * 1000000)}"
 
     async def set_lock_state(self, session: aiohttp.ClientSession, lock: bool):
@@ -900,8 +900,8 @@ class HypervoltApiClient:
 
                     state.schedule_intervals.append(
                         HypervoltScheduleInterval(
-                            datetime.time.fromisoformat(session["start_time"]),
-                            datetime.time.fromisoformat(session["end_time"]),
+                            time.fromisoformat(session["start_time"]),
+                            time.fromisoformat(session["end_time"]),
                             HypervoltChargeMode[session["mode"].upper()],
                             days_of_week,
                         )
