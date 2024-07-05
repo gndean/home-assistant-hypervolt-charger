@@ -163,13 +163,24 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     )
                 )
 
-                state = await self.api.v2_update_state_from_schedule(
-                    self.api_session, self.data
-                )
-                _LOGGER.debug(
-                    f"HypervoltCoordinator _update returning state from v2_update_state_from_schedule"
-                )
-                return state
+                try:
+                    state = await self.api.v2_update_state_from_schedule(
+                        self.api_session, self.data
+                    )
+                    _LOGGER.debug(
+                        f"HypervoltCoordinator _update returning state from v2_update_state_from_schedule"
+                    )
+                    return state
+
+                except Exception as exc2:
+                    # Report exception but return current state to prevent
+                    # the coordinator from being marked as failed
+                    _LOGGER.error(
+                        f"HypervoltCoordinator _update v2_update_state_from_schedule, exception: {type(exc2).__name__}: {str(exc2)}"
+                    )
+                    # Return the current state
+                    return self.data
+
             else:
                 _LOGGER.debug(f"HypervoltCoordinator _update returning current state")
                 return self.data

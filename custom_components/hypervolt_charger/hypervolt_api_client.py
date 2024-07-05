@@ -237,19 +237,19 @@ class HypervoltApiClient:
                 _LOGGER.debug(f"Hypervolt charger schedule: {response_text}")
 
                 jres = json.loads(response_text)
-                if jres["enabled"]:
+                if jres.get("enabled"):
                     state.activation_mode = HypervoltActivationMode.SCHEDULE
                 else:
                     state.activation_mode = HypervoltActivationMode.PLUG_AND_CHARGE
 
-                if jres["type"]:
+                if jres.get("type"):
                     state.schedule_type = jres["type"]
 
-                if jres["tz"]:
+                if jres.get("tz"):
                     state.schedule_tz = jres["tz"]
 
                 state.schedule_intervals = []
-                for interval in jres["intervals"]:
+                for interval in jres.get("intervals", []):
                     start = interval[0]
                     end = interval[1]
 
