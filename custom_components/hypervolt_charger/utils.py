@@ -1,21 +1,23 @@
 import logging
 import json
 import os
+import aiofiles
 
 from .hypervolt_device_state import HypervoltDayOfWeek
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_version_from_manifest() -> str:
+async def get_version_from_manifest() -> str:
     """Attempt to read the manifest.json file and extract the version number. Returns 0.0.0 on failure"""
     try:
         manifest_filename = os.path.join(os.path.dirname(__file__), "manifest.json")
         _LOGGER.debug(
             f"get_version_from_manifest loading manifest: {manifest_filename}"
         )
-        with open(manifest_filename, encoding="utf-8") as manifest_file:
-            manifest = json.load(manifest_file)
+        async with aiofiles.open(manifest_filename, encoding="utf-8") as manifest_file:
+            contents = await manifest_file.read()
+            manifest = json.loads(contents)
             version = manifest["version"]
             _LOGGER.debug(f"get_version_from_manifest returning version: {version}")
 

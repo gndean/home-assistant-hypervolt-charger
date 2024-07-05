@@ -50,7 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         coordinator = await HypervoltUpdateCoordinator.create_hypervolt_coordinator(
             hass,
-            get_version_from_manifest(),
+            await get_version_from_manifest(),
             config.data.get(CONF_USERNAME),
             config.data.get(CONF_PASSWORD),
             config.data.get(CONF_CHARGER_ID),
@@ -76,6 +76,7 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
             await coordinator.async_unload()
 
         raise ConfigEntryNotReady from exc
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""

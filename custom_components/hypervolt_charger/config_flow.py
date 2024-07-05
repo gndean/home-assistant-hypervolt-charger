@@ -1,4 +1,5 @@
 """Config flow for Hypervolt EV charger integration."""
+
 from __future__ import annotations
 
 import logging
@@ -31,7 +32,7 @@ async def login_and_get_charger_ids(
 ) -> list[str]:
     """Log into the HV API and return a list of charger ID strings found within the account"""
     api = HypervoltApiClient(
-        get_version_from_manifest(), data[CONF_USERNAME], data[CONF_PASSWORD]
+        await get_version_from_manifest(), data[CONF_USERNAME], data[CONF_PASSWORD]
     )
     async with aiohttp.ClientSession() as session:
         await api.login(session)
