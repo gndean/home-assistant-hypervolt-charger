@@ -64,7 +64,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             tracker = hass.states.get(tracker_id)
 
         if tracker is not None:
-            if tracker.attributes.get("target_times_last_evaluated ", None) is None:
+            if tracker.attributes.get("target_times_last_evaluated", None) is None:
                 _LOGGER.info("Tracker not evaluated yet")
                 if backup_available is False:
                     _LOGGER.warning("Tracker data not available and no backup set, unable to set schedule")
