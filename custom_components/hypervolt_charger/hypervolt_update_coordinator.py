@@ -178,8 +178,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         and if so, proactively refresh it.
         """
 
-        _LOGGER.debug("HypervoltCoordinator check_for_access_token_expiry enter")
-
         seconds_to_expiry = (
             self.api.get_access_token_expiry() - datetime.now(UTC)
         ).total_seconds()

@@ -203,8 +203,6 @@ class HypervoltApiClient:
 
         _LOGGER.debug(f"Access token expires in {expires_in} seconds")
 
-        expires_in = 5 * 60  # Reduce the expiry time to 5 minutes for testing
-
         self.access_token_expires_at_date = datetime.now(UTC) + timedelta(
             seconds=expires_in
         )
