@@ -201,8 +201,16 @@ class HypervoltApiClient:
         # Calculate the absolute time when the token expires
         expires_in = response_dict["expires_in"]
 
+        _LOGGER.debug(f"Access token expires in {expires_in} seconds")
+
+        expires_in = 5 * 60  # Reduce the expiry time to 5 minutes for testing
+
         self.access_token_expires_at_date = datetime.now(UTC) + timedelta(
             seconds=expires_in
+        )
+
+        _LOGGER.debug(
+            f"Setting access token expiry to {self.access_token_expires_at_date}"
         )
 
     def get_access_token_expiry(self) -> datetime:
@@ -281,7 +289,7 @@ class HypervoltApiClient:
         session: aiohttp.ClientSession,
         access_token: str,
         get_state_callback,
-        on_state_updated_callback,
+        on_state_updated_async_callback,
     ):
         """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -293,12 +301,12 @@ class HypervoltApiClient:
             get_state_callback,
             self.on_sync_websocket_connected,
             self.on_sync_websocket_message,
-            on_state_updated_callback,
+            on_state_updated_async_callback,
             self.on_sync_websocket_closed,
         )
 
     async def on_sync_websocket_message(
-        self, message: str, get_state_callback, on_state_updated_callback
+        self, message: str, get_state_callback, on_state_updated_async_callback
     ):
         """Handle messages coming back from the /sync websocket"""
         try:
@@ -332,23 +340,23 @@ class HypervoltApiClient:
 
             if method == "login":
                 await self.on_message_login(result)
-            elif method == "sync.snapshot" or method == "sync.apply":
+            elif method in ("sync.snapshot", "sync.apply"):
                 self.on_message_sync_snapshot(result, state)
 
-                if on_state_updated_callback:
-                    on_state_updated_callback(state)
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             elif method == "get.session":
                 self.on_message_session(result, state)
 
-                if on_state_updated_callback:
-                    on_state_updated_callback(state)
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             # This appears to be an inconsistency with HV's naming: we get schedules (plural) but set schedule (singular).
             # In both cases, we get or set an array of sessions.
             elif method in ("schedules.get", "schedule.set"):
                 self.on_message_schedule(result, state)
 
-                if on_state_updated_callback:
-                    on_state_updated_callback(state)
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             elif method == "get.pilot_status":
                 if "pilot_status" in result:
                     # https://en.wikipedia.org/wiki/SAE_J1772#Control_Pilot
@@ -361,8 +369,8 @@ class HypervoltApiClient:
                     elif result["pilot_status"] == "A":
                         state.car_plugged = False
 
-                if on_state_updated_callback:
-                    on_state_updated_callback(state)
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             else:
                 _LOGGER.debug(
                     "On_sync_websocket_message_callback ignored message: %s",
@@ -388,7 +396,7 @@ class HypervoltApiClient:
         get_state_callback,
         on_connected_callback,
         on_message_callback,
-        on_state_updated_callback,
+        on_state_updated_async_callback,
         on_closed_callback,
     ):
         """Open websocket to url and block forever. Handle reconnections and back-off
@@ -436,7 +444,9 @@ class HypervoltApiClient:
                         # Pass message onto handler, also passing the callback to inform the caller of the updated state
                         if on_message_callback:
                             await on_message_callback(
-                                message, get_state_callback, on_state_updated_callback
+                                message,
+                                get_state_callback,
+                                on_state_updated_async_callback,
                             )
 
                         msg_count += 1
@@ -514,7 +524,7 @@ class HypervoltApiClient:
         session: aiohttp.ClientSession,
         access_token: str,
         get_state_callback,
-        on_state_updated_callback,
+        on_state_updated_async_callback,
     ):
         """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
 
@@ -526,7 +536,7 @@ class HypervoltApiClient:
             get_state_callback,
             self.on_session_in_progress_websocket_connected,
             self.on_session_in_progress_websocket_message,
-            on_state_updated_callback,
+            on_state_updated_async_callback,
             self.on_session_in_progress_websocket_closed,
         )
 
@@ -536,7 +546,7 @@ class HypervoltApiClient:
         self.websocket_session_in_progress = websocket
 
     async def on_session_in_progress_websocket_message(
-        self, message, get_state_callback, on_state_updated_callback
+        self, message, get_state_callback, on_state_updated_async_callback
     ):
         try:
             # Example messages:
@@ -547,8 +557,8 @@ class HypervoltApiClient:
 
             self.on_message_session(jmsg, state)
 
-            if on_state_updated_callback:
-                on_state_updated_callback(state)
+            if on_state_updated_async_callback:
+                await on_state_updated_async_callback(state)
 
         except Exception as exc:
             _LOGGER.error(
