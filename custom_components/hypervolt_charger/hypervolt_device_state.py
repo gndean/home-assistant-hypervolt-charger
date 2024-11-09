@@ -19,6 +19,7 @@ class HypervoltChargeMode(Enum):
 class HypervoltActivationMode(Enum):
     PLUG_AND_CHARGE = 0
     SCHEDULE = 1
+    OCTOPUS = 2
 
 
 class HypervoltReleaseState(Enum):

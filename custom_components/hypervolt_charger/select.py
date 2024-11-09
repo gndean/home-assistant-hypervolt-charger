@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 
 from copy import deepcopy
 
@@ -133,7 +134,7 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
 
 class ActivationModeSelect(HypervoltEntity, SelectEntity):
     # TODO: Get these from translations
-    _ACTIVATION_MODE_STRINGS = ["Plug and Charge", "Schedule"]
+    _ACTIVATION_MODE_STRINGS = ["Plug and Charge", "Schedule", "Octopus"]
 
     @property
     def name(self) -> str:
@@ -147,7 +148,16 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
     def options(self) -> list[str]:
         """Return a set of selectable options."""
 
-        return self._ACTIVATION_MODE_STRINGS
+        if (
+            self._hypervolt_coordinator.data.activation_mode
+            == HypervoltActivationMode.OCTOPUS
+        ):
+            # If we're in Octopus mode, we can't change it
+            return [
+                self._ACTIVATION_MODE_STRINGS[HypervoltActivationMode.OCTOPUS.value]
+            ]
+        else:
+            return self._ACTIVATION_MODE_STRINGS
 
     @property
     def current_option(self) -> str | None:
@@ -159,7 +169,14 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
             return None
 
     async def async_select_option(self, option: str) -> None:
-        """Change the selected option."""
+        """Change the selected option, if allowed."""
+        if (
+            self._hypervolt_coordinator.data.activation_mode
+            == HypervoltActivationMode.OCTOPUS
+            and option != "Octopus"
+        ):
+            _LOGGER.warning("Activation mode cannot be changed when in Octopus mode")
+
         if option and option in self._ACTIVATION_MODE_STRINGS:
             if self._hypervolt_coordinator.api.get_charger_major_version() == 2:
                 await self._hypervolt_coordinator.api.set_schedule(

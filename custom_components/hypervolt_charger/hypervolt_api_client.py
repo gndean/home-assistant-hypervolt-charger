@@ -325,9 +325,14 @@ class HypervoltApiClient:
             elif "params" in msg:
                 method = msg.get("method", "")
                 result = msg["params"]
+            elif "error" in msg:
+                error = msg["error"]
+                # Record this as a warning as we've handled it here and might not be a problem
+                _LOGGER.warning(f"Error message from websocket: {error}")
+                return
 
             if not method and "id" in msg:
-                # If this is a message response, find the method from the sent message
+                # If this is a message response, find the method from the sent message``
                 msg_id = msg.get("id")
                 for sent_message in self.websocket_sync_sent_messages:
                     if sent_message.get("id") == msg_id:
@@ -600,7 +605,7 @@ class HypervoltApiClient:
                 "method": "login",
                 "params": {
                     "token": access_token,
-                    "version": 2,
+                    "version": 3,
                 },
             }
             await self.send_message_to_sync(message)
@@ -890,30 +895,59 @@ class HypervoltApiClient:
 
     def on_message_schedule(self, result: dict, state: HypervoltDeviceState):
         """V3 only. Handle an update to the schedule."""
-        applied = result.get("applied", None)
+        applied = result.get("applied")
         if applied:
             if "enabled" in applied:
                 schedule_enabled = applied["enabled"]
-                state.activation_mode = (
-                    HypervoltActivationMode.SCHEDULE
-                    if schedule_enabled
-                    else HypervoltActivationMode.PLUG_AND_CHARGE
-                )
+                schedule_type = applied.get("type", None)
+                if schedule_enabled and schedule_type == "octopus":
+                    state.activation_mode = HypervoltActivationMode.OCTOPUS
+                elif schedule_enabled:
+                    state.activation_mode = HypervoltActivationMode.SCHEDULE
+                else:
+                    state.activation_mode = HypervoltActivationMode.PLUG_AND_CHARGE
+
             if "sessions" in applied:
                 state.schedule_intervals = []
                 for session in applied["sessions"]:
-                    days_of_week = 0
-                    for day in session.get("days", []):
-                        days_of_week |= HypervoltDayOfWeek[day.upper()].value
+                    try:
+                        if (
+                            state.activation_mode == HypervoltActivationMode.OCTOPUS
+                            and session.get("mode", None) != "boost"
+                        ):
+                            # Only show boost sessions in Octopus mode
+                            continue
 
-                    state.schedule_intervals.append(
-                        HypervoltScheduleInterval(
-                            time.fromisoformat(session["start_time"]),
-                            time.fromisoformat(session["end_time"]),
-                            HypervoltChargeMode[session["mode"].upper()],
-                            days_of_week,
+                        days_of_week = 0
+                        for day in session.get("days", []):
+                            days_of_week |= HypervoltDayOfWeek[day.upper()].value
+
+                        start_time_str = session["start_time"]
+                        end_time_str = session["end_time"]
+
+                        # Handle either a time string or datetime string
+                        if "T" in start_time_str:
+                            start_time = datetime.fromisoformat(start_time_str).time()
+                        else:
+                            start_time = time.fromisoformat(start_time_str)
+
+                        if "T" in end_time_str:
+                            end_time = datetime.fromisoformat(end_time_str).time()
+                        else:
+                            end_time = time.fromisoformat(end_time_str)
+
+                        state.schedule_intervals.append(
+                            HypervoltScheduleInterval(
+                                start_time,
+                                end_time,
+                                HypervoltChargeMode[session["mode"].upper()],
+                                days_of_week,
+                            )
                         )
-                    )
+                    except Exception as exc:
+                        _LOGGER.warning(
+                            f"Error parsing schedule session: {session}, {exc}"
+                        )
 
                 # Copy to schedule_intervals_to_apply
                 state.schedule_intervals_to_apply = deepcopy(state.schedule_intervals)
