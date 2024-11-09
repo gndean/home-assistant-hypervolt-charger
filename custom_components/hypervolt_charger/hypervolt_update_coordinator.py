@@ -66,7 +66,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         _LOGGER.debug("HypervoltCoordinator _async_update_data enter")
 
         try:
-            async with async_timeout.timeout(10):
+            async with async_timeout.timeout(30):
                 return await self._update()
         except InvalidAuth as exc:
             raise ConfigEntryAuthFailed() from exc
