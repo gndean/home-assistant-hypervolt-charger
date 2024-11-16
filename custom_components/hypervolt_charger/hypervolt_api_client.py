@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import asyncio
+import ssl
 import aiohttp
 
 import websockets
@@ -413,11 +414,16 @@ class HypervoltApiClient:
             # If the connection is closed, we retry with an exponential back-off delay
             backoff_seconds = self.get_intial_backoff_delay_secs()
 
+            # Fix for WARNING (MainThread) [homeassistant.util.loop] Detected blocking call to load_default_certs with args
+            # see https://developers.home-assistant.io/docs/asyncio_blocking_operations/#load_default_certs
+            ssl_context = await asyncio.to_thread(ssl.create_default_context)
+
             async for websocket in websockets.connect(
                 url,
                 origin="https://hypervolt.co.uk",
                 host="api.hypervolt.co.uk",
                 user_agent_header=self.get_user_agent(),
+                ssl=ssl_context,
             ):
                 try:
                     _LOGGER.info(f"{log_prefix} connected")
@@ -458,24 +464,16 @@ class HypervoltApiClient:
                             backoff_seconds = self.get_intial_backoff_delay_secs()
 
                     # Don't log error or warning as we will see this when our access token expires
-                    _LOGGER.info(
-                        f"{log_prefix} iterator exited. Socket closed, code: {websocket.close_code}, reason: {websocket.close_reason}"
-                    )
+                    _LOGGER.info(f"{log_prefix} iterator exited. Socket closed")
 
                 except websockets.ConnectionClosedOK:
-                    _LOGGER.warning(
-                        f"{log_prefix} ConnectionClosedOK, code: {websocket.close_code}, reason: {websocket.close_reason}"
-                    )
+                    _LOGGER.warning(f"{log_prefix} ConnectionClosedOK")
                     continue
                 except websockets.ConnectionClosedError:
-                    _LOGGER.warning(
-                        f"{log_prefix} ConnectionClosedError, code: {websocket.close_code}, reason: {websocket.close_reason}"
-                    )
+                    _LOGGER.warning(f"{log_prefix} ConnectionClosedError")
                     continue
                 except websockets.ConnectionClosed:
-                    _LOGGER.warning(
-                        f"{log_prefix} ConnectionClosed, code: {websocket.close_code}, reason: {websocket.close_reason}"
-                    )
+                    _LOGGER.warning(f"{log_prefix} ConnectionClosed")
                     continue
                 except asyncio.CancelledError as exc:
                     # Re-raise to break websocket loop
