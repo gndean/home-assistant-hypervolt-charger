@@ -157,7 +157,13 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
                 self._ACTIVATION_MODE_STRINGS[HypervoltActivationMode.OCTOPUS.value]
             ]
         else:
-            return self._ACTIVATION_MODE_STRINGS
+            # Remove Octopus mode from the list of options as we can't switch into that from here
+            return [
+                self._ACTIVATION_MODE_STRINGS[
+                    HypervoltActivationMode.PLUG_AND_CHARGE.value
+                ],
+                self._ACTIVATION_MODE_STRINGS[HypervoltActivationMode.SCHEDULE.value],
+            ]
 
     @property
     def current_option(self) -> str | None:
