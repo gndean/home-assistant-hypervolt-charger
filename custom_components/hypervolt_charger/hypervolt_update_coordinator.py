@@ -20,11 +20,6 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# Polling interval to get schedule/charge mode, and to re-check
-# other properties that should otherwise be synced promptly via websocket pushes
-# but we poll too to ensure we don't miss anything
-SCAN_INTERVAL = timedelta(minutes=5)
-
 
 class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     @staticmethod
@@ -51,12 +46,31 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         _LOGGER.debug("HypervoltUpdateCoordinator init")
         self.api = api
 
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
+        # Polling interval to get schedule/charge mode, and to re-check
+        # other properties that should otherwise be synced promptly via websocket pushes
+        # but we poll too to ensure we don't miss anything
+        # Note that websocket updates that result in async_on_state_updated() being called
+        # reset this interval timer so for V3 devices with regular pushes, we may never poll.
+        self.poll_interval = timedelta(minutes=5)
+
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=self.poll_interval)
 
         self.api_session = None
         self.data = HypervoltDeviceState(self.api.charger_id)
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
+
+        # Staleness detection thresholds
+        # For V3 devices, if we haven't received a websocket message in this time, force reconnection
+        # In practice, we only check during the poll_interval so set this slightly less than that
+        self.websocket_staleness_threshold = timedelta(minutes=4)
+
+        # After detecting staleness, wait this long before attempting another reconnection
+        # This prevents hammering the servers if the backend has stopped sending data
+        self.websocket_stale_reconnect_backoff = timedelta(minutes=50)
+
+        # Track when we last attempted a reconnection due to staleness
+        self.last_stale_reconnect_attempt: datetime | None = None
 
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
@@ -93,14 +107,35 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         try:
             _LOGGER.debug("Hypervolt _update enter")
 
-            # If we have an active session, try and use that now
-            # If that fails, we'll re-login
+            # If we have an active session, check if it's actually alive
             if (
                 self.api_session
                 and not self.api_session.closed
                 and "authorization" in self.api_session.headers
                 and self.api.websocket_sync
             ):
+                # Check for websocket staleness (no messages received recently)
+                # Only for V3+ chargers - V2 chargers don't send regular data
+                if (
+                    self.api.get_charger_major_version() >= 3
+                    and self._is_websocket_stale()
+                ):
+                    # Check if we're in the backoff period after a recent stale reconnection attempt
+                    if self._should_skip_stale_reconnect():
+                        _LOGGER.debug(
+                            "WebSocket appears stale, but skipping reconnection due to backoff period"
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "WebSocket connection appears stale (no messages for %s). "
+                            "Forcing reconnection",
+                            self.websocket_staleness_threshold,
+                        )
+                        # Track this reconnection attempt
+                        self.last_stale_reconnect_attempt = datetime.now(UTC)
+                        # Force reconnection by raising exception
+                        raise InvalidAuth("WebSocket stale - forcing reconnection")
+
                 await self.check_for_access_token_expiry()
 
                 _LOGGER.debug("HypervoltCoordinator _update exit")
@@ -173,6 +208,63 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 _LOGGER.debug(f"HypervoltCoordinator _update returning current state")
                 return self.data
 
+    def _is_websocket_stale(self) -> bool:
+        """Check if the websocket connection is stale (connected but not receiving data).
+
+        Returns True if:
+        - We haven't had any websocket activity within the staleness threshold
+
+        Returns False if:
+        - We don't have a timestamp yet (websocket not connected)
+        - Activity (connection or messages) is recent
+        """
+        if self.api.last_websocket_activity_time is None:
+            # WebSocket not connected yet
+            _LOGGER.debug("WebSocket not connected yet - not considering stale")
+            return False
+
+        # Calculate time since last activity (either connection or message)
+        time_since_last_activity = (
+            datetime.now(UTC) - self.api.last_websocket_activity_time
+        )
+
+        is_stale = time_since_last_activity > self.websocket_staleness_threshold
+
+        if is_stale:
+            _LOGGER.debug(
+                "WebSocket staleness check: last activity was %s ago (threshold: %s)",
+                time_since_last_activity,
+                self.websocket_staleness_threshold,
+            )
+
+        return is_stale
+
+    def _should_skip_stale_reconnect(self) -> bool:
+        """Check if we should skip reconnection attempt due to backoff period.
+
+        Returns True if:
+        - We've attempted a stale reconnection recently (within backoff period)
+
+        Returns False if:
+        - We've never attempted a stale reconnection
+        - Enough time has passed since the last attempt
+        """
+        if self.last_stale_reconnect_attempt is None:
+            return False
+
+        time_since_last_attempt = datetime.now(UTC) - self.last_stale_reconnect_attempt
+
+        should_skip = time_since_last_attempt < self.websocket_stale_reconnect_backoff
+
+        if should_skip:
+            _LOGGER.debug(
+                "Skipping stale reconnection attempt: last attempt was %s ago (backoff: %s)",
+                time_since_last_attempt,
+                self.websocket_stale_reconnect_backoff,
+            )
+
+        return should_skip
+
     async def check_for_access_token_expiry(self):
         """Check if our access token is about to expire
         and if so, proactively refresh it.
@@ -181,7 +273,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         seconds_to_expiry = (
             self.api.get_access_token_expiry() - datetime.now(UTC)
         ).total_seconds()
-        if seconds_to_expiry < SCAN_INTERVAL.total_seconds() * 1.5:
+        if seconds_to_expiry < self.poll_interval.total_seconds() * 1.5:
             _LOGGER.debug(
                 f"Access token is about to expire in {seconds_to_expiry:.0f} seconds, attempting to refresh it"
             )
@@ -263,6 +355,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
     async def async_on_state_updated(self, state: HypervoltDeviceState):
         """A callback from the HypervoltApiClient when a potential state change has been pushed to a web socket"""
+        # Reset the stale reconnect backoff timer since we received data
+        # This allows us to quickly detect staleness again if data stops flowing
+        self.last_stale_reconnect_attempt = None
+
         self.async_set_updated_data(state)
 
         # Now check if we need to update our refresh token

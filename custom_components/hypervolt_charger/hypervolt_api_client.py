@@ -56,6 +56,10 @@ class HypervoltApiClient:
         self.refresh_token = None
         self.access_token_expires_at_date: datetime = None
 
+        # Track when we last had websocket activity - either connection or message received
+        # This is used for staleness detection
+        self.last_websocket_activity_time: datetime | None = None
+
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
 
@@ -308,6 +312,11 @@ class HypervoltApiClient:
         self, message: str, get_state_callback, on_state_updated_async_callback
     ):
         """Handle messages coming back from the /sync websocket"""
+
+        # Update timestamp FIRST (before any exception handling)
+        # This is used for staleness detection
+        self.last_websocket_activity_time = datetime.now(UTC)
+
         try:
             # Example messages:
             # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
@@ -385,6 +394,8 @@ class HypervoltApiClient:
 
     async def on_sync_websocket_connected(self, websocket, access_token):
         self.websocket_sync = websocket
+        # Set activity timestamp on connection
+        self.last_websocket_activity_time = datetime.now(UTC)
         await self.send_sync_login_request(access_token)
 
     async def on_sync_websocket_closed(self):
@@ -549,6 +560,10 @@ class HypervoltApiClient:
     async def on_session_in_progress_websocket_message(
         self, message, get_state_callback, on_state_updated_async_callback
     ):
+        # Update timestamp FIRST (before any exception handling)
+        # This is used for staleness detection
+        self.last_websocket_activity_time = datetime.now(UTC)
+
         try:
             # Example messages:
             # {"charging":false,"session":240,"milli_amps":32000,"true_milli_amps":0,"watt_hours":2371,"ccy_spent":34,"carbon_saved_grams":1036,"ct_current":0,"ct_power":0,"voltage":0}
