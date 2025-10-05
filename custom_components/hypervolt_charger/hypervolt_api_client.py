@@ -7,6 +7,7 @@ import logging
 import random
 import asyncio
 import ssl
+from typing import Any
 import aiohttp
 
 import websockets
@@ -220,21 +221,21 @@ class HypervoltApiClient:
         """Return the expiry time of the access token"""
         return self.access_token_expires_at_date
 
-    async def get_chargers(self, session):
-        """Returns an array like: [{"charger_id": 123, "created": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
-        Raises InvalidAuth"""
+    async def get_chargers(self, session) -> list[dict[str, Any]]:
+        """Return an array of chargers.
+
+        Returns an array like: [{"id": "123", "model": "Home 3 Pro", "adopted_at": "yyyy-MM-ddTHH:mm:ss.sssZ"}]
+        Raises InvalidAuth on authentication failure.
+        """
         async with session.get(
-            "https://api.hypervolt.co.uk/charger/by-owner"
+            "https://api.hypervolt.co.uk/users/me?includes=chargers"
         ) as response:
-            if response.status == 200:
+            if response.status >= 200 and response.status < 300:
                 response_text = await response.text()
                 return json.loads(response_text)["chargers"]
 
-            elif response.status >= 400 and response.status < 500:
-                _LOGGER.error(
-                    "Could not get chargers, status code: %d", response.status
-                )
-                raise InvalidAuth
+            _LOGGER.error("Could not get chargers, status code: %d", response.status)
+            raise InvalidAuth
 
     async def v2_update_state_from_schedule(
         self, session: aiohttp.ClientSession, state: HypervoltDeviceState

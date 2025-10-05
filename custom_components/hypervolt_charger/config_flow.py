@@ -27,9 +27,9 @@ STEP_LOGIN_SCHEMA = vol.Schema(
 )
 
 
-async def login_and_get_charger_ids(
+async def login_and_get_chargers(
     hass: HomeAssistant, data: dict[str, Any]
-) -> list[str]:
+) -> list[dict[str, Any]]:
     """Log into the HV API and return a list of charger ID strings found within the account"""
     api = HypervoltApiClient(
         await get_version_from_manifest(), data[CONF_USERNAME], data[CONF_PASSWORD]
@@ -39,14 +39,14 @@ async def login_and_get_charger_ids(
         chargers = await api.get_chargers(session)
         _LOGGER.info("Found chargers: %s", chargers)
 
-        return [str(c["charger_id"]) for c in chargers]
+        return chargers
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Hypervolt Charger."""
 
     def __init__(self):
-        self.charger_ids: list[str] = []
+        self.chargers: list[dict[str, Any]] = []
         self.login_user_input: dict[str, Any] | None = None
 
     async def async_step_user(
@@ -67,10 +67,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         try:
-            self.charger_ids = await login_and_get_charger_ids(self.hass, user_input)
+            self.chargers = await login_and_get_chargers(self.hass, user_input)
 
             # We support a maximum of 8 chargers per account so truncate the list to that size
-            self.charger_ids = self.charger_ids[:8]
+            self.chargers = self.chargers[:8]
 
         except CannotConnect:
             errors["base"] = "cannot_connect"
@@ -80,20 +80,24 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            charger_count = len(self.charger_ids)
+            charger_count = len(self.chargers)
             if charger_count == 0:
                 errors["base"] = "no_chargers_found"
             elif charger_count == 1:
                 # Complete with this charger
                 # Note: this may raise AbortFlow if the ID already exists
-                return await self.async_complete_setup(self.charger_ids[0])
+                return await self.async_complete_setup(self.chargers[0]["id"])
             else:
                 # Allow user to select charger
                 # Populate menu options for each of the chargers found
                 # The menu ID will trigger a call to async_step_<menu_id> when selected
                 charger_menu_options = {}
                 for i in range(charger_count):
-                    charger_menu_options[f"charger_{i}"] = self.charger_ids[i]
+                    menu_option_text = self.chargers[i].get("model", "")
+                    if menu_option_text:
+                        menu_option_text += ": "
+                    menu_option_text += self.chargers[i].get("id", "<unknown>")
+                    charger_menu_options[f"charger_{i}"] = menu_option_text
 
                 return self.async_show_menu(
                     step_id="login", menu_options=charger_menu_options
@@ -124,39 +128,39 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_charger_0(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[0])
+        return await self.async_complete_setup(self.chargers[0]["id"])
 
     async def async_step_charger_1(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[1])
+        return await self.async_complete_setup(self.chargers[1]["id"])
 
     async def async_step_charger_2(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[2])
+        return await self.async_complete_setup(self.chargers[2]["id"])
 
     async def async_step_charger_3(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[3])
+        return await self.async_complete_setup(self.chargers[3]["id"])
 
     async def async_step_charger_4(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[4])
+        return await self.async_complete_setup(self.chargers[4]["id"])
 
     async def async_step_charger_5(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[5])
+        return await self.async_complete_setup(self.chargers[5]["id"])
 
     async def async_step_charger_6(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[6])
+        return await self.async_complete_setup(self.chargers[6]["id"])
 
     async def async_step_charger_7(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_complete_setup(self.charger_ids[7])
+        return await self.async_complete_setup(self.chargers[7]["id"])
