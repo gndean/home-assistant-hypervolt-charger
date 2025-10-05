@@ -775,14 +775,47 @@ class HypervoltApiClient:
 
             sessions = []
             for schedule_interval in schedule_intervals:
-                session = {
-                    "session_type": "recurring",
-                    "start_time": schedule_interval.start_time.strftime("%H:%M"),
-                    "end_time": schedule_interval.end_time.strftime("%H:%M"),
-                    "mode": schedule_interval.charge_mode.name.lower(),
-                    "days": get_days_from_days_of_week(schedule_interval.days_of_week),
-                }
-                sessions.append(session)
+                # Check if the session spans midnight (start_time > end_time)
+                # If so, split into two sessions: start -> 24:00, 00:00 -> end
+                # Strangely, the V2 API doesn't require this
+                if schedule_interval.start_time > schedule_interval.end_time:
+                    # First session: start_time to 24:00
+                    session1 = {
+                        "session_type": "recurring",
+                        "start_time": schedule_interval.start_time.strftime("%H:%M"),
+                        "end_time": "24:00",
+                        "mode": schedule_interval.charge_mode.name.lower(),
+                        "days": get_days_from_days_of_week(
+                            schedule_interval.days_of_week
+                        ),
+                    }
+                    if session1["end_time"] != session1["start_time"]:
+                        sessions.append(session1)
+
+                    # Second session: 00:00 to end_time
+                    session2 = {
+                        "session_type": "recurring",
+                        "start_time": "00:00",
+                        "end_time": schedule_interval.end_time.strftime("%H:%M"),
+                        "mode": schedule_interval.charge_mode.name.lower(),
+                        "days": get_days_from_days_of_week(
+                            schedule_interval.days_of_week
+                        ),
+                    }
+                    if session2["end_time"] != session2["start_time"]:
+                        sessions.append(session2)
+                else:
+                    # Normal session that doesn't span midnight
+                    session1 = {
+                        "session_type": "recurring",
+                        "start_time": schedule_interval.start_time.strftime("%H:%M"),
+                        "end_time": schedule_interval.end_time.strftime("%H:%M"),
+                        "mode": schedule_interval.charge_mode.name.lower(),
+                        "days": get_days_from_days_of_week(
+                            schedule_interval.days_of_week
+                        ),
+                    }
+                    sessions.append(session1)
 
             message = {
                 "id": self.get_next_message_id(),
