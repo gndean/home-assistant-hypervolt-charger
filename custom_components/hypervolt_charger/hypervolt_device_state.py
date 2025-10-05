@@ -105,3 +105,6 @@ class HypervoltDeviceState:
         # over a time window and estimating the current charger output power over that time.
         # In Watts
         self.current_session_power = 0
+
+        # Firmware version
+        self.firmware_version = None

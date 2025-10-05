@@ -138,6 +138,12 @@ async def async_setup_entry(
             state_class=SensorStateClass.MEASUREMENT,
             unit_of_measure=UnitOfPower.WATT,
         ),
+        HypervoltSensor(
+            coordinator,
+            "Firmware Version",
+            "firmware_version",
+            state_class=None,
+        ),
         ChargingReadinessSensor(coordinator),
     ]
 

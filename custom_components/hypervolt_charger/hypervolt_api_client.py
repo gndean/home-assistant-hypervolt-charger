@@ -384,6 +384,13 @@ class HypervoltApiClient:
 
                 if on_state_updated_async_callback:
                     await on_state_updated_async_callback(state)
+            elif method == "firmware.version":
+                # Handle firmware version response
+                # Result is a string like "2483.0 or 202111231810.abcdef"
+                state.firmware_version = result
+
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             else:
                 _LOGGER.debug(
                     "On_sync_websocket_message_callback ignored message: %s",
@@ -662,6 +669,19 @@ class HypervoltApiClient:
         else:
             return False
 
+    async def send_sync_firmware_version_request(self) -> bool:
+        """Ask for the firmware version. Returns true if the sync websocket is ready, false otherwise"""
+        if self.websocket_sync:
+            message = {
+                "jsonrpc": "2.0",
+                "id": self.get_next_message_id(),
+                "method": "firmware.version",
+            }
+            await self.send_message_to_sync(message)
+            return True
+        else:
+            return False
+
     async def set_led_brightness(self, value: float):
         """Set the LED brightness, in the range [0.0, 1.0]"""
         message = {
@@ -867,6 +887,9 @@ class HypervoltApiClient:
                 # Version 2 returns "schedules.get not allowed" and "plugncharge.get not allowed" for these
                 await self.send_sync_schedule_request()
                 await self.send_sync_plugncharge_request()
+
+            # Request firmware version for all charger versions
+            await self.send_sync_firmware_version_request()
         else:
             raise InvalidAuth
 
