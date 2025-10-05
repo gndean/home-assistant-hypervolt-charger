@@ -391,6 +391,11 @@ class HypervoltApiClient:
 
                 if on_state_updated_async_callback:
                     await on_state_updated_async_callback(state)
+            elif method == "get.name":
+                self.on_message_charger_name(result, state)
+
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             else:
                 _LOGGER.debug(
                     "On_sync_websocket_message_callback ignored message: %s",
@@ -682,6 +687,19 @@ class HypervoltApiClient:
         else:
             return False
 
+    async def send_get_charger_name_request(self) -> bool:
+        """Request the charger name. Returns true if the sync websocket is ready, false otherwise"""
+        if self.websocket_sync:
+            message = {
+                "jsonrpc": "2.0",
+                "id": self.get_next_message_id(),
+                "method": "get.name",
+            }
+            await self.send_message_to_sync(message)
+            return True
+        else:
+            return False
+
     async def set_led_brightness(self, value: float):
         """Set the LED brightness, in the range [0.0, 1.0]"""
         message = {
@@ -715,6 +733,16 @@ class HypervoltApiClient:
             "id": self.get_next_message_id(),
             "method": "sync.apply",
             "params": {"release": not charging},
+        }
+        await self.send_message_to_sync(message)
+
+    async def set_charger_name(self, name: str):
+        """Set the charger name"""
+        message = {
+            "jsonrpc": "2.0",
+            "id": self.get_next_message_id(),
+            "method": "set.name",
+            "params": {"name": name},
         }
         await self.send_message_to_sync(message)
 
@@ -890,6 +918,9 @@ class HypervoltApiClient:
 
             # Request firmware version for all charger versions
             await self.send_sync_firmware_version_request()
+
+            # Request charger name for all charger versions
+            await self.send_get_charger_name_request()
         else:
             raise InvalidAuth
 
@@ -961,6 +992,10 @@ class HypervoltApiClient:
             )
         else:
             state.session_watthours_total_increasing = None
+
+    def on_message_charger_name(self, result, state: HypervoltDeviceState):
+        """Handle charger name get response."""
+        state.charger_name = result
 
     def on_message_schedule(self, result: dict, state: HypervoltDeviceState):
         """V3 only. Handle an update to the schedule."""

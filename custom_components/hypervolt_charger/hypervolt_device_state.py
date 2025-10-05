@@ -108,3 +108,6 @@ class HypervoltDeviceState:
 
         # Firmware version
         self.firmware_version = None
+
+        # Charger name (user-defined)
+        self.charger_name: str | None = None

@@ -28,12 +28,48 @@ async def async_setup_entry(
 
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
+    entities = []
+
+    # Charger name entity for all versions
+    entities.append(HypervoltChargerName(coordinator))
+
     if coordinator.api.get_charger_major_version() >= 3:
         # Create a text entity for each schedule interval
-        entities = []
         for interval_index in range(NUM_SCHEDULE_INTERVALS):
             entities.append(HypervoltScheduleDaysOfWeek(coordinator, interval_index))
-        async_add_entities(entities)
+
+    async_add_entities(entities)
+
+
+class HypervoltChargerName(HypervoltEntity, TextEntity):
+    """Text entity for the charger name."""
+
+    def __init__(self, coordinator: HypervoltUpdateCoordinator) -> None:
+        super(HypervoltChargerName, self).__init__(coordinator)
+        self._attr_native_min = 1
+        self._attr_native_max = 250  # Reasonable max length for a name
+        self._attr_pattern = None  # Allow any characters
+
+    @property
+    def unique_id(self):
+        return f"{super().unique_id}_charger_name"
+
+    @property
+    def name(self):
+        return f"{super().name} Charger Name"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the current charger name."""
+        return self._hypervolt_coordinator.data.charger_name
+
+    async def async_set_value(self, value: str) -> None:
+        """Set the charger name."""
+        await self._hypervolt_coordinator.api.set_charger_name(value)
+
+        # Optimistically update the state
+        self._hypervolt_coordinator.data.charger_name = value
+        self.async_write_ha_state()
 
 
 class HypervoltScheduleDaysOfWeek(HypervoltEntity, TextEntity):
@@ -49,13 +85,11 @@ class HypervoltScheduleDaysOfWeek(HypervoltEntity, TextEntity):
 
     @property
     def unique_id(self):
-        return (
-            f"{super().unique_id}_schedule_session_{self.interval_index+1}_days_of_week"
-        )
+        return f"{super().unique_id}_schedule_session_{self.interval_index + 1}_days_of_week"
 
     @property
     def name(self):
-        return f"{super().name} Schedule Session {self.interval_index+1} Days Of Week"
+        return f"{super().name} Schedule Session {self.interval_index + 1} Days Of Week"
 
     @property
     def native_value(self) -> time | None:
