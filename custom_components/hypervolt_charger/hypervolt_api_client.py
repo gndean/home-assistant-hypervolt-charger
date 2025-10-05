@@ -971,6 +971,10 @@ class HypervoltApiClient:
                         start_time_str = session["start_time"]
                         end_time_str = session["end_time"]
 
+                        # Handle midnight end time
+                        if end_time_str == "24:00":
+                            end_time_str = "00:00"
+
                         # Handle either a time string or datetime string
                         if "T" in start_time_str:
                             start_time = datetime.fromisoformat(start_time_str).time()
