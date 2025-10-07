@@ -5,6 +5,7 @@ import aiohttp
 
 from datetime import timedelta, datetime, UTC
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -29,6 +30,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         username: str,
         password: str,
         charger_id: str,
+        config_entry: ConfigEntry,
     ) -> "HypervoltUpdateCoordinator":
         _LOGGER.debug("Create_hypervolt_coordinator enter")
 
@@ -37,14 +39,19 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             f"Create_hypervolt_coordinator HypervoltApiClient created, charger_id: {charger_id}"
         )
 
-        coordinator = HypervoltUpdateCoordinator(hass, api=api)
+        coordinator = HypervoltUpdateCoordinator(
+            hass, api=api, config_entry=config_entry
+        )
         _LOGGER.debug("Create_hypervolt_coordinator HypervoltUpdateCoordinator created")
 
         return coordinator
 
-    def __init__(self, hass: HomeAssistant, api: HypervoltApiClient) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: HypervoltApiClient, config_entry: ConfigEntry
+    ) -> None:
         _LOGGER.debug("HypervoltUpdateCoordinator init")
         self.api = api
+        self.config_entry = config_entry
 
         # Polling interval to get schedule/charge mode, and to re-check
         # other properties that should otherwise be synced promptly via websocket pushes
@@ -59,6 +66,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.data = HypervoltDeviceState(self.api.charger_id)
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
+        self.reload_task = None  # Track reload task to prevent garbage collection
 
         # Staleness detection thresholds
         # For V3 devices, if we haven't received a websocket message in this time, force reconnection
@@ -70,7 +78,11 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.websocket_stale_reconnect_backoff = timedelta(minutes=50)
 
         # Track when we last attempted a reconnection due to staleness
-        self.last_stale_reconnect_attempt: datetime | None = None
+        # Retrieve from hass.data to persist across reloads
+        self._stale_reload_key = f"{DOMAIN}_{config_entry.entry_id}_last_stale_reload"
+        self.last_stale_reconnect_attempt: datetime | None = hass.data.get(
+            self._stale_reload_key
+        )
 
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
@@ -128,13 +140,25 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     else:
                         _LOGGER.warning(
                             "WebSocket connection appears stale (no messages for %s). "
-                            "Forcing reconnection",
+                            "Reloading entire integration",
                             self.websocket_staleness_threshold,
                         )
-                        # Track this reconnection attempt
+                        # Track this reconnection attempt in both instance and hass.data
+                        # (hass.data persists across reloads)
                         self.last_stale_reconnect_attempt = datetime.now(UTC)
-                        # Force reconnection by raising exception
-                        raise InvalidAuth("WebSocket stale - forcing reconnection")
+                        self.hass.data[self._stale_reload_key] = (
+                            self.last_stale_reconnect_attempt
+                        )
+
+                        # Go nuclear: reload the entire integration
+                        self.reload_task = asyncio.create_task(
+                            self.hass.config_entries.async_schedule_reload(
+                                self.config_entry.entry_id
+                            )
+                        )
+
+                        # Return current data while reload is happening
+                        return self.data
 
                 await self.check_for_access_token_expiry()
 

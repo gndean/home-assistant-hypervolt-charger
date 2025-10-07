@@ -54,6 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
             config.data.get(CONF_USERNAME),
             config.data.get(CONF_PASSWORD),
             config.data.get(CONF_CHARGER_ID),
+            config,
         )
 
         hass.data[DOMAIN][config.entry_id] = coordinator
