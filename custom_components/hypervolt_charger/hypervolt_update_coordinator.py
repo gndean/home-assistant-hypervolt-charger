@@ -17,7 +17,7 @@ from .hypervolt_device_state import (
     HypervoltDeviceState,
 )
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ENABLE_STALENESS_DETECTION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +66,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.data = HypervoltDeviceState(self.api.charger_id)
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
-        self.reload_task = None  # Track reload task to prevent garbage collection
 
         # Staleness detection thresholds
         # For V3 devices, if we haven't received a websocket message in this time, force reconnection
@@ -128,8 +127,12 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             ):
                 # Check for websocket staleness (no messages received recently)
                 # Only for V3+ chargers - V2 chargers don't send regular data
+                # AND only if staleness detection is enabled in options
                 if (
-                    self.api.get_charger_major_version() >= 3
+                    self.config_entry.options.get(
+                        CONF_ENABLE_STALENESS_DETECTION, False
+                    )
+                    and self.api.get_charger_major_version() >= 3
                     and self._is_websocket_stale()
                 ):
                     # Check if we're in the backoff period after a recent stale reconnection attempt
@@ -150,11 +153,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                             self.last_stale_reconnect_attempt
                         )
 
-                        # Go nuclear: reload the entire integration
-                        self.reload_task = asyncio.create_task(
-                            self.hass.config_entries.async_schedule_reload(
-                                self.config_entry.entry_id
-                            )
+                        # Schedule reload - this creates its own task internally
+                        # We must NOT await this or wrap in create_task
+                        self.hass.config_entries.async_schedule_reload(
+                            self.config_entry.entry_id
                         )
 
                         # Return current data while reload is happening
@@ -345,14 +347,20 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             )
 
     async def async_unload(self):
+        """Unload the coordinator and clean up resources."""
         _LOGGER.debug("HypervoltCoordinator async_unload")
 
+        # Stop the coordinator's update cycle first
+        await self.async_shutdown()
+
+        # Close API websockets and sessions
         await self.api.unload()
 
         if self.api_session:
             await self.api_session.close()
             self.api_session = None
 
+        # Cancel any remaining push tasks
         # The api.unload call above should cause the push tasks to complete
         # But we'll cancel them here too to make sure
         if self.notify_on_hypervolt_sync_push_task:

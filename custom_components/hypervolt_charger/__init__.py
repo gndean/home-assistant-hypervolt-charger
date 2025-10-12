@@ -86,9 +86,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Async_unload_entry enter")
 
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
 
+    # Always clean up coordinator resources (websockets, sessions, etc)
     await coordinator.async_unload()
 
     return unload_ok

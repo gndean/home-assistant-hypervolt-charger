@@ -1,27 +1,41 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "A charger with this ID is already configured"
-        },
-        "error": {
-            "cannot_connect": "Failed to connect",
-            "invalid_auth": "Authentication failure",
-            "no_chargers_found": "No chargers found within account",
-            "unknown": "Unexpected error"
-        },
-        "step": {
-            "login": {
-                "title": "Log in using your Hypervolt.co.uk credentials",
-                "description": "Note: login via Google or Apple not supported",
-                "data": {
-                    "password": "Password",
-                    "username": "Email address"
-                }
-            },
-            "select_charger": {
-                "title": "Select charger serial",
-                "description": "Note: you can add multiple chargers by adding one now and repeating the Add Integration steps"
-            }
+  "config": {
+    "abort": {
+      "already_configured": "A charger with this ID is already configured"
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Authentication failure",
+      "no_chargers_found": "No chargers found within account",
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "login": {
+        "title": "Log in using your Hypervolt.co.uk credentials",
+        "description": "Note: login via Google or Apple not supported",
+        "data": {
+          "password": "Password",
+          "username": "Email address"
         }
+      },
+      "select_charger": {
+        "title": "Select charger serial",
+        "description": "Note: you can add multiple chargers by adding one now and repeating the Add Integration steps"
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Advanced options",
+        "description": "**Websocket staleness detection** (V3 chargers only): Automatically reloads the integration if no updates are received for 4 minutes. This may help with connection issues but could cause unnecessary reloads. **Most users should leave this disabled.**",
+        "data": {
+          "enable_staleness_detection": "Enable automatic recovery from stale connections"
+        },
+        "data_description": {
+          "enable_staleness_detection": "Only enable if you experience lack of regular power sensor data with your V3 charger"
+        }
+      }
+    }
+  }
 }
