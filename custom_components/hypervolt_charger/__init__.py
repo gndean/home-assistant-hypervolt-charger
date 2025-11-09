@@ -21,14 +21,13 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # There should be a file for each of the declared platforms e.g. sensor.py
 PLATFORMS: list[Platform] = [
-    Platform.SENSOR,
-    Platform.SWITCH,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.NUMBER,
     Platform.SELECT,
-    Platform.TIME,
-    Platform.BUTTON,
+    Platform.SWITCH,
     Platform.TEXT,
-    Platform.BINARY_SENSOR,
+    Platform.TIME,
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,17 +47,25 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
     """Set up Hypervolt Charger from a config entry."""
-    coordinator: HypervoltUpdateCoordinator = None
+    coordinator: HypervoltUpdateCoordinator | None = None
 
     try:
         _LOGGER.debug("Async_setup_entry enter, entry_id: %s", config.entry_id)
 
+        # Get config values and ensure they exist
+        username = config.data.get(CONF_USERNAME)
+        password = config.data.get(CONF_PASSWORD)
+        charger_id = config.data.get(CONF_CHARGER_ID)
+
+        if not username or not password or not charger_id:
+            raise ConfigEntryNotReady("Missing required configuration")
+
         coordinator = await HypervoltUpdateCoordinator.create_hypervolt_coordinator(
             hass,
             await get_version_from_manifest(),
-            config.data.get(CONF_USERNAME),
-            config.data.get(CONF_PASSWORD),
-            config.data.get(CONF_CHARGER_ID),
+            username,
+            password,
+            charger_id,
             config,
         )
 
@@ -67,7 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
         await coordinator.async_config_entry_first_refresh()
 
         if not coordinator.last_update_success:
-            raise Exception("Failed to retrieve initial data")
+            raise ConfigEntryNotReady("Failed to retrieve initial data")
 
         _LOGGER.debug("Async_setup_entry async_forward_entry_setups")
         await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
@@ -75,8 +82,9 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry) -> bool:
 
         return True
     except Exception as exc:
-        _LOGGER.error(
-            f"Async_setup_entry exception:  {type(exc).__name__}: {str(exc)}", exc
+        _LOGGER.exception(
+            "Async_setup_entry exception: %s",
+            type(exc).__name__,
         )
         # Because we re-raise here, HA will retry async_setup_entry so we need
         # to make sure we clean up any existing coordinator

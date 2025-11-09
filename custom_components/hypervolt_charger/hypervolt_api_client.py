@@ -1,27 +1,28 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
-from datetime import datetime, timedelta, time, UTC
+from datetime import UTC, datetime, time, timedelta
 import json
 import logging
 import random
-import asyncio
 import ssl
 from typing import Any
-import aiohttp
 
+import aiohttp
 import websockets
+from websockets.legacy.client import WebSocketClientProtocol
 
 from homeassistant.exceptions import HomeAssistantError
 
 from .hypervolt_device_state import (
     HypervoltActivationMode,
     HypervoltChargeMode,
+    HypervoltDayOfWeek,
     HypervoltDeviceState,
     HypervoltLockState,
     HypervoltReleaseState,
     HypervoltScheduleInterval,
-    HypervoltDayOfWeek,
 )
 from .utils import get_days_from_days_of_week
 
@@ -39,15 +40,15 @@ class InvalidAuth(HomeAssistantError):
 
 
 class HypervoltApiClient:
-    def __init__(self, version, username, password, charger_id=None):
-        """Set charger_id if known, or None during config, to allow chargers to be enumerated after login()"""
+    def __init__(self, version, username, password, charger_id=None) -> None:
+        """Set charger_id if known, or None during config, to allow chargers to be enumerated after login()."""
         self.version = version
         self.username = username
         self.password = password
         self.charger_id = charger_id
 
-        self.websocket_sync: websockets.client.WebSocketClientProtocol = None
-        self.websocket_session_in_progress: websockets.client.WebSocketClientProtocol = None
+        self.websocket_sync: WebSocketClientProtocol | None = None
+        self.websocket_session_in_progress: WebSocketClientProtocol | None = None
 
         # Store a list of messages sent to the sync websocket
         self.websocket_sync_sent_messages = []
@@ -55,7 +56,7 @@ class HypervoltApiClient:
         self.unload_requested = False
         self.access_token = None
         self.refresh_token = None
-        self.access_token_expires_at_date: datetime = None
+        self.access_token_expires_at_date: datetime | None = None
 
         # Track when we last had websocket activity - either connection or message received
         # This is used for staleness detection
@@ -63,7 +64,6 @@ class HypervoltApiClient:
 
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
-
         _LOGGER.debug("Unload enter")
 
         self.unload_requested = True
@@ -80,8 +80,8 @@ class HypervoltApiClient:
         """If we have an access token, attempt to refresh it.
         Else attempt to log in using credentials from config.
         Raises InvalidAuth or CannotConnect on failure.
-        Returns the access token as a string on success."""
-
+        Returns the access token as a string on success.
+        """
         try:
             if self.refresh_token:
                 return await self.refresh_access_token(session)
@@ -114,19 +114,23 @@ class HypervoltApiClient:
 
                     self.update_from_token_response(session, response_dict)
 
+                    assert self.access_token is not None  # nosec
                     return self.access_token
 
-                elif response.status >= 400 and response.status < 500:
+                if response.status >= 400 and response.status < 500:
                     _LOGGER.error(
-                        f"Authentication error when trying to log in, status code: {response.status}"
+                        "Authentication error when trying to log in, status code: %s",
+                        response.status,
                     )
-                    raise InvalidAuth
-                else:
-                    response_text = await response.text()
-                    _LOGGER.error(
-                        f"Error: unable to login, status: {response.status}, {response_text}",
-                    )
-                    raise CannotConnect
+                    raise InvalidAuth from None
+
+                response_text = await response.text()
+                _LOGGER.error(
+                    "Error: unable to login, status: %s, %s",
+                    response.status,
+                    response_text,
+                )
+                raise CannotConnect from None
 
         except InvalidAuth as exc:
             await session.close()
@@ -135,11 +139,11 @@ class HypervoltApiClient:
             await session.close()
             raise CannotConnect from exc
 
-    async def refresh_access_token(self, session: aiohttp.ClientSession):
+    async def refresh_access_token(self, session: aiohttp.ClientSession) -> str:
         """Refresh the access token using the refresh token.
         Store new self.access_token and self.refresh_token.
-        Also sets the access token in the session and returns it."""
-
+        Also sets the access token in the session and returns it.
+        """
         try:
             _LOGGER.info("Attempting to refresh access token")
             session.headers["user-agent"] = self.get_user_agent()
@@ -159,35 +163,35 @@ class HypervoltApiClient:
 
                     self.update_from_token_response(session, response_dict)
 
+                    assert self.access_token is not None  # nosec
                     return self.access_token
 
-                elif response.status >= 400 and response.status < 500:
+                if response.status >= 400 and response.status < 500:
                     _LOGGER.warning(
-                        f"Authentication error when trying to refresh token, status code: {response.status}"
+                        "Authentication error when trying to refresh token, status code: %s",
+                        response.status,
                     )
                     # Don't attempt to use the tokens again
                     self.access_token = None
                     self.refresh_token = None
 
                     raise InvalidAuth
-                else:
-                    response_text = await response.text()
-                    _LOGGER.warning(
-                        f"Error: unable to refresh token, status: {response.status}, {response_text}",
-                    )
-                    raise CannotConnect
+                response_text = await response.text()
+                _LOGGER.warning(
+                    "Error: unable to refresh token, status: %s, %s",
+                    response.status,
+                    response_text,
+                )
+                raise CannotConnect
         except Exception as exc:
             # Don't log as error or warning as this could just be a network issue
-            _LOGGER.info(
-                f"Unable to refresh token: {exc}",
-            )
+            _LOGGER.info("Unable to refresh token: %s", exc)
             raise
 
     def update_from_token_response(
         self, session: aiohttp.ClientSession, response_dict: dict
     ):
-        """Update ourselves with the response from a login or token refresh call"""
-
+        """Update ourselves with the response from a login or token refresh call."""
         # {
         # "access_token": "<jwt>",
         # "expires_in": 3600,
@@ -207,18 +211,18 @@ class HypervoltApiClient:
         # Calculate the absolute time when the token expires
         expires_in = response_dict["expires_in"]
 
-        _LOGGER.debug(f"Access token expires in {expires_in} seconds")
+        _LOGGER.debug("Access token expires in %s seconds", expires_in)
 
         self.access_token_expires_at_date = datetime.now(UTC) + timedelta(
             seconds=expires_in
         )
 
         _LOGGER.debug(
-            f"Setting access token expiry to {self.access_token_expires_at_date}"
+            "Setting access token expiry to %s", self.access_token_expires_at_date
         )
 
-    def get_access_token_expiry(self) -> datetime:
-        """Return the expiry time of the access token"""
+    def get_access_token_expiry(self) -> datetime | None:
+        """Return the expiry time of the access token."""
         return self.access_token_expires_at_date
 
     async def get_chargers(self, session) -> list[dict[str, Any]]:
@@ -241,13 +245,12 @@ class HypervoltApiClient:
         self, session: aiohttp.ClientSession, state: HypervoltDeviceState
     ) -> HypervoltDeviceState:
         """V2 charger only. Use API to update the state. Raise exception on error."""
-
         async with session.get(
             f"https://api.hypervolt.co.uk/charger/by-id/{self.charger_id}/schedule"
         ) as response:
             if response.status == 200:
                 response_text = await response.text()
-                _LOGGER.debug(f"Hypervolt charger schedule: {response_text}")
+                _LOGGER.debug("Hypervolt charger schedule: %s", response_text)
 
                 jres = json.loads(response_text)
                 if jres.get("enabled"):
@@ -295,8 +298,7 @@ class HypervoltApiClient:
         get_state_callback,
         on_state_updated_async_callback,
     ):
-        """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely"""
-
+        """Open websocket to /sync endpoint and notify on updates. This function blocks indefinitely."""
         await self.notify_on_websocket(
             f"notify_on_websocket sync, {asyncio.current_task().get_name()},",
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/sync",
@@ -312,8 +314,7 @@ class HypervoltApiClient:
     async def on_sync_websocket_message(
         self, message: str, get_state_callback, on_state_updated_async_callback
     ):
-        """Handle messages coming back from the /sync websocket"""
-
+        """Handle messages coming back from the /sync websocket."""
         # Update timestamp FIRST (before any exception handling)
         # This is used for staleness detection
         self.last_websocket_activity_time = datetime.now(UTC)
@@ -339,8 +340,9 @@ class HypervoltApiClient:
             elif "error" in msg:
                 error = msg["error"]
                 # Record this as a warning as we've handled it here and might not be a problem
-                _LOGGER.warning(f"Error message from websocket: {error}")
+                _LOGGER.warning("Error message from websocket: %s", error)
                 return
+            assert result is not None
 
             if not method and "id" in msg:
                 # If this is a message response, find the method from the sent message``
@@ -402,16 +404,18 @@ class HypervoltApiClient:
                     "On_sync_websocket_message_callback ignored message: %s",
                     message,
                 )
-        except Exception as exc:
-            _LOGGER.warning(f"On_sync_websocket_message_callback error {exc}")
+        except Exception:
+            _LOGGER.exception("On_sync_websocket_message_callback error")
 
     async def on_sync_websocket_connected(self, websocket, access_token):
+        """Handle sync websocket connection."""
         self.websocket_sync = websocket
         # Set activity timestamp on connection
         self.last_websocket_activity_time = datetime.now(UTC)
         await self.send_sync_login_request(access_token)
 
     async def on_sync_websocket_closed(self):
+        """Handle sync websocket closure."""
         _LOGGER.debug("on_sync_websocket_closed")
         self.websocket_sync = None
 
@@ -427,11 +431,12 @@ class HypervoltApiClient:
         on_state_updated_async_callback,
         on_closed_callback,
     ):
-        """Open websocket to url and block forever. Handle reconnections and back-off
-        Used as a common function for multiple websocket endpoints"""
+        """Open websocket to url and block forever. Handle reconnections and back-off.
 
+        Used as a common function for multiple websocket endpoints.
+        """
         try:
-            _LOGGER.debug(f"{log_prefix} enter")
+            _LOGGER.debug("%s enter", log_prefix)
 
             task_cancelled = False
 
@@ -450,12 +455,12 @@ class HypervoltApiClient:
                 ssl=ssl_context,
             ):
                 try:
-                    _LOGGER.info(f"{log_prefix} connected")
+                    _LOGGER.info("%s connected", log_prefix)
 
                     # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
                     # need a secondary check, via the HypervoltApiClient
                     if self.unload_requested:
-                        _LOGGER.debug(f"{log_prefix} unload from connection loop")
+                        _LOGGER.debug("%s unload from connection loop", log_prefix)
                         raise asyncio.CancelledError
 
                     if on_connected_callback:
@@ -466,12 +471,12 @@ class HypervoltApiClient:
                     # or without a close code. It raises a ConnectionClosedError when the connection is closed with any other code.
                     msg_count = 0
                     async for message in websocket:
-                        _LOGGER.debug(f"{log_prefix} recv: {message}")
+                        _LOGGER.debug("%s recv: %s", log_prefix, message)
 
                         # Calling asyncio.task.cancel between enter and connecting doesn't raise CancelledError nor set current_task().cancelled(), so we
                         # need a secondary check, via the HypervoltApiClient
                         if self.unload_requested:
-                            _LOGGER.debug(f"{log_prefix} unload from message loop")
+                            _LOGGER.debug("%s unload from message loop", log_prefix)
                             raise asyncio.CancelledError
 
                         # Pass message onto handler, also passing the callback to inform the caller of the updated state
@@ -488,24 +493,24 @@ class HypervoltApiClient:
                             backoff_seconds = self.get_intial_backoff_delay_secs()
 
                     # Don't log error or warning as we will see this when our access token expires
-                    _LOGGER.info(f"{log_prefix} iterator exited. Socket closed")
+                    _LOGGER.info("%s iterator exited. Socket closed", log_prefix)
 
                 except websockets.ConnectionClosedOK:
-                    _LOGGER.warning(f"{log_prefix} ConnectionClosedOK")
+                    _LOGGER.warning("%s ConnectionClosedOK", log_prefix)
                     continue
                 except websockets.ConnectionClosedError:
-                    _LOGGER.warning(f"{log_prefix} ConnectionClosedError")
+                    _LOGGER.warning("%s ConnectionClosedError", log_prefix)
                     continue
                 except websockets.ConnectionClosed:
-                    _LOGGER.warning(f"{log_prefix} ConnectionClosed")
+                    _LOGGER.warning("%s ConnectionClosed", log_prefix)
                     continue
-                except asyncio.CancelledError as exc:
+                except asyncio.CancelledError:
                     # Re-raise to break websocket loop
-                    _LOGGER.debug(f"{log_prefix} cancelled (websocket loop)")
+                    _LOGGER.debug("%s cancelled (websocket loop)", log_prefix)
                     task_cancelled = True
-                    raise exc
-                except Exception as exc:
-                    _LOGGER.warning(f"{log_prefix} exception {exc}")
+                    raise
+                except Exception:
+                    _LOGGER.exception("%s websocket exception", log_prefix)
                     continue
 
                 finally:
@@ -513,13 +518,15 @@ class HypervoltApiClient:
                         await on_closed_callback()
 
                     if self.unload_requested:
-                        _LOGGER.debug(f"{log_prefix} unload from finally")
+                        _LOGGER.debug("%s unload from finally", log_prefix)
                         raise asyncio.CancelledError
 
                     if not task_cancelled:
                         # Apply back off here if we're not cancelled
                         _LOGGER.debug(
-                            f"{log_prefix} backing off {backoff_seconds} seconds before reconnection attempt"
+                            "%s backing off %s seconds before reconnection attempt",
+                            log_prefix,
+                            backoff_seconds,
                         )
                         await asyncio.sleep(backoff_seconds)
 
@@ -529,19 +536,19 @@ class HypervoltApiClient:
                         # Attempt a re-login
                         access_token = await self.login(session)
 
-        except asyncio.CancelledError as exc:
-            _LOGGER.debug(f"{log_prefix} cancelled (main try/catch)")
-        except Exception as exc:
-            _LOGGER.error(f"{log_prefix} notify_on_hypervolt_sync_push error: {exc}")
+        except asyncio.CancelledError:
+            _LOGGER.debug("%s cancelled (main try/catch)", log_prefix)
+        except Exception:
+            _LOGGER.exception("%s notify_on_hypervolt_sync_push error", log_prefix)
         finally:
-            _LOGGER.debug(f"{log_prefix} exit")
+            _LOGGER.debug("%s exit", log_prefix)
 
     def get_intial_backoff_delay_secs(self):
-        """Get initial random delay for exponential back-off"""
+        """Get initial random delay for exponential back-off."""
         return random.randint(3, 12)
 
     def increase_backoff_delay(self, delay_secs: int):
-        """Return increased back-off delay for next time, up to a max of 5 minutes"""
+        """Return increased back-off delay for next time, up to a max of 5 minutes."""
         return min(300, int(delay_secs * 1.7))
 
     async def notify_on_hypervolt_session_in_progress_websocket(
@@ -551,8 +558,7 @@ class HypervoltApiClient:
         get_state_callback,
         on_state_updated_async_callback,
     ):
-        """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely"""
-
+        """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely."""
         await self.notify_on_websocket(
             f"notify_on_websocket session/in-progress, {asyncio.current_task().get_name()},",
             f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
@@ -568,11 +574,13 @@ class HypervoltApiClient:
     async def on_session_in_progress_websocket_connected(
         self, websocket, access_token: str
     ):
+        """Handle session in progress websocket connection."""
         self.websocket_session_in_progress = websocket
 
     async def on_session_in_progress_websocket_message(
         self, message, get_state_callback, on_state_updated_async_callback
     ):
+        """Handle messages from the session in progress websocket."""
         # Update timestamp FIRST (before any exception handling)
         # This is used for staleness detection
         self.last_websocket_activity_time = datetime.now(UTC)
@@ -589,16 +597,19 @@ class HypervoltApiClient:
             if on_state_updated_async_callback:
                 await on_state_updated_async_callback(state)
 
-        except Exception as exc:
-            _LOGGER.error(
-                f"on_session_in_progress_websocket_message_callback message: {message}, error: {exc}"
+        except Exception:
+            _LOGGER.exception(
+                "on_session_in_progress_websocket_message_callback error, message: %s",
+                message,
             )
 
     async def on_session_in_progress_websocket_closed(self):
+        """Handle session in progress websocket closure."""
         _LOGGER.debug("on_session_in_progress_websocket_closed")
         self.websocket_session_in_progress = None
 
     async def send_message_to_sync(self, message: dict):
+        """Send a message to the sync websocket."""
         if self.websocket_sync:
             if "jsonrpc" not in message:
                 message["jsonrpc"] = "2.0"
@@ -608,7 +619,7 @@ class HypervoltApiClient:
             if "params" in loggable_message and "token" in loggable_message["params"]:
                 loggable_message["params"]["token"] = "********"
 
-            _LOGGER.debug(f"Send_message_to_sync: {json.dumps(loggable_message)}")
+            _LOGGER.debug("Send_message_to_sync: %s", json.dumps(loggable_message))
 
             jmessage = json.dumps(message)
 
@@ -636,8 +647,7 @@ class HypervoltApiClient:
             }
             await self.send_message_to_sync(message)
             return True
-        else:
-            return False
+        return False
 
     async def send_sync_snapshot_request(self) -> bool:
         """Ask for a snapshot of the /sync state. Returns true if the sync websocket is ready, false otherwise"""
@@ -648,8 +658,7 @@ class HypervoltApiClient:
             }
             await self.send_message_to_sync(message)
             return True
-        else:
-            return False
+        return False
 
     async def send_sync_schedule_request(self) -> bool:
         """Ask for a copy of the schedule. Returns true if the sync websocket is ready, false otherwise"""
@@ -660,8 +669,7 @@ class HypervoltApiClient:
             }
             await self.send_message_to_sync(message)
             return True
-        else:
-            return False
+        return False
 
     async def send_sync_plugncharge_request(self) -> bool:
         """Ask for a copy of the plug and charge status. Returns true if the sync websocket is ready, false otherwise"""
@@ -672,8 +680,7 @@ class HypervoltApiClient:
             }
             await self.send_message_to_sync(message)
             return True
-        else:
-            return False
+        return False
 
     async def send_sync_firmware_version_request(self) -> bool:
         """Ask for the firmware version. Returns true if the sync websocket is ready, false otherwise"""
@@ -685,8 +692,7 @@ class HypervoltApiClient:
             }
             await self.send_message_to_sync(message)
             return True
-        else:
-            return False
+        return False
 
     async def send_get_charger_name_request(self) -> bool:
         """Request the charger name. Returns true if the sync websocket is ready, false otherwise"""
@@ -698,8 +704,7 @@ class HypervoltApiClient:
             }
             await self.send_message_to_sync(message)
             return True
-        else:
-            return False
+        return False
 
     async def set_led_brightness(self, value: float):
         """Set the LED brightness, in the range [0.0, 1.0]"""
@@ -768,13 +773,12 @@ class HypervoltApiClient:
         schedule_intervals: list[HypervoltScheduleInterval],
         schedule_type,
         schedule_tz,
-    ) -> HypervoltDeviceState:
+    ) -> None:
         """Use API to update the state. Raise exception on error.
 
         Schedule_type and schedule_tz should have been obtained via by getting the schedule first
         I've only seen type of: "restricted" so not sure what other values are valid.
         """
-
         if self.get_charger_major_version() == 2:
             schedule_intervals_to_push = []
             for schedule_interval in schedule_intervals:
@@ -809,7 +813,7 @@ class HypervoltApiClient:
                 headers={"content-type": "application/json"},
             ) as response:
                 if response.status == 200:
-                    _LOGGER.debug(f"Schedule set")
+                    _LOGGER.debug("Schedule set")
                 elif response.status == 401:
                     _LOGGER.warning("Set_schedule, unauthorised")
                     raise InvalidAuth
@@ -883,7 +887,6 @@ class HypervoltApiClient:
 
     def get_charger_major_version(self) -> int:
         """Get the major version of the charger from the charger_id"""
-
         try:
             # Convert charger_id from decimal to hex and check how many bytes it corresponds to
             # Round up to the nearest even number of bytes
@@ -892,15 +895,14 @@ class HypervoltApiClient:
 
             if num_id_bytes == 12:
                 return 2
-            elif num_id_bytes == 16:
+            if num_id_bytes == 16:
                 return 3
-            else:
-                _LOGGER.warning(f"Unknown charger version from id: {self.charger_id}")
-                # Take a guess
-                return 3
+            _LOGGER.warning("Unknown charger version from id: %s", self.charger_id)
+            # Take a guess
+            return 3
         except Exception:
             _LOGGER.warning(
-                f"Error parsing id to get charger version: {self.charger_id}"
+                "Error parsing id to get charger version: %s", self.charger_id
             )
             # Take a guess
             return 3
@@ -943,10 +945,7 @@ class HypervoltApiClient:
                 ]
 
     def on_message_session(self, result: dict, state: HypervoltDeviceState):
-        """Handle an update to the current charging session"""
-
-        prev_session_id = state.session_id
-
+        """Handle an update to the current charging session."""
         # Only update state if properties are present, otherwise leave state as-is
         if "charging" in result:
             state.is_charging = result.get("charging")
@@ -984,10 +983,10 @@ class HypervoltApiClient:
 
         # Calculate derived field: session_watthours_total_increasing
         # This used to involve some complicated logic but now we just keep track of the max value
-        if state.is_charging:
+        if state.is_charging and state.session_watthours is not None:
             state.session_watthours_total_increasing = max(
                 state.session_watthours_total_increasing
-                if state.session_watthours_total_increasing
+                if state.session_watthours_total_increasing is not None
                 else 0,
                 state.session_watthours,
             )
@@ -1055,7 +1054,7 @@ class HypervoltApiClient:
                         )
                     except Exception as exc:
                         _LOGGER.warning(
-                            f"Error parsing schedule session: {session}, {exc}"
+                            "Error parsing schedule session: %s, %s", session, exc
                         )
 
                 # Copy to schedule_intervals_to_apply
