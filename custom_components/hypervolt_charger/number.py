@@ -40,10 +40,10 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
 
     @property
     def native_value(self):
-        if self._hypervolt_coordinator.data.led_brightness is None:
+        if self.coordinator.data.led_brightness is None:
             return None
         else:
-            return self._hypervolt_coordinator.data.led_brightness * 100
+            return self.coordinator.data.led_brightness * 100
 
     @property
     def native_min_value(self) -> float:
@@ -60,7 +60,7 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
-        await self._hypervolt_coordinator.api.set_led_brightness(value)
+        await self.coordinator.api.set_led_brightness(value)
 
     @property
     def native_unit_of_measurement(self) -> Optional[str]:
@@ -82,10 +82,10 @@ class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
 
     @property
     def native_value(self) -> int:
-        if self._hypervolt_coordinator.data.max_current_milliamps is None:
+        if self.coordinator.data.max_current_milliamps is None:
             return None
         else:
-            return self._hypervolt_coordinator.data.max_current_milliamps / 1000
+            return self.coordinator.data.max_current_milliamps / 1000
 
     @property
     def native_min_value(self) -> int:
@@ -97,7 +97,7 @@ class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
 
     async def async_set_native_value(self, value: int) -> None:
         """Update the current value."""
-        await self._hypervolt_coordinator.api.set_max_current_milliamps(value * 1000)
+        await self.coordinator.api.set_max_current_milliamps(value * 1000)
 
     @property
     def native_unit_of_measurement(self) -> Optional[str]:

@@ -57,7 +57,7 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
     @property
     def native_value(self) -> time | None:
         """Return the start or end time defined in the schedule, or None if the session doesn't exist."""
-        intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
+        intervals = self.coordinator.data.schedule_intervals_to_apply
         tm = None
         if (
             intervals
@@ -77,7 +77,7 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
 
         # First create an array of the max size, and fill it with the existing values
         new_intervals: list[HypervoltScheduleInterval] = [None] * NUM_SCHEDULE_INTERVALS
-        intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
+        intervals = self.coordinator.data.schedule_intervals_to_apply
         if intervals:
             for i, interval in enumerate(intervals):
                 new_intervals[i] = deepcopy(interval)
@@ -93,4 +93,4 @@ class HypervoltScheduleTime(HypervoltEntity, TimeEntity):
         else:
             new_intervals[self.interval_index].end_time = value
 
-        self._hypervolt_coordinator.data.schedule_intervals_to_apply = new_intervals
+        self.coordinator.data.schedule_intervals_to_apply = new_intervals

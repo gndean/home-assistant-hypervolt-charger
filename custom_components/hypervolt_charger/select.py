@@ -80,7 +80,7 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
     def current_option(self) -> str | None:
         """Return the selected entity option to represent the entity state."""
         if self.is_schedule_selector:
-            intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
+            intervals = self.coordinator.data.schedule_intervals_to_apply
             if (
                 intervals
                 and len(intervals) > self.interval_index
@@ -92,7 +92,7 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
 
             return None
         else:
-            charge_mode = self._hypervolt_coordinator.data.charge_mode
+            charge_mode = self.coordinator.data.charge_mode
             if charge_mode:
                 return self._CHARGE_MODE_STRINGS[charge_mode.value]
             else:
@@ -107,7 +107,7 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
                 new_intervals: list[HypervoltScheduleInterval] = [
                     None
                 ] * NUM_SCHEDULE_INTERVALS
-                intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
+                intervals = self.coordinator.data.schedule_intervals_to_apply
                 if intervals:
                     for i, interval in enumerate(intervals):
                         new_intervals[i] = deepcopy(interval)
@@ -119,13 +119,13 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
                 new_intervals[self.interval_index].charge_mode = HypervoltChargeMode(
                     self._CHARGE_MODE_STRINGS.index(option)
                 )
-                self._hypervolt_coordinator.data.schedule_intervals_to_apply = (
+                self.coordinator.data.schedule_intervals_to_apply = (
                     new_intervals
                 )
 
             else:
                 # Set the current charge mode
-                await self._hypervolt_coordinator.api.set_charge_mode(
+                await self.coordinator.api.set_charge_mode(
                     HypervoltChargeMode(self._CHARGE_MODE_STRINGS.index(option))
                 )
         else:
@@ -149,7 +149,7 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
         """Return a set of selectable options."""
 
         if (
-            self._hypervolt_coordinator.data.activation_mode
+            self.coordinator.data.activation_mode
             == HypervoltActivationMode.OCTOPUS
         ):
             # If we're in Octopus mode, we can't change it
@@ -168,7 +168,7 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the selected entity option to represent the entity state."""
-        activation_mode = self._hypervolt_coordinator.data.activation_mode
+        activation_mode = self.coordinator.data.activation_mode
         if activation_mode:
             return self._ACTIVATION_MODE_STRINGS[activation_mode.value]
         else:
@@ -177,30 +177,30 @@ class ActivationModeSelect(HypervoltEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option, if allowed."""
         if (
-            self._hypervolt_coordinator.data.activation_mode
+            self.coordinator.data.activation_mode
             == HypervoltActivationMode.OCTOPUS
             and option != "Octopus"
         ):
             _LOGGER.warning("Activation mode cannot be changed when in Octopus mode")
 
         if option and option in self._ACTIVATION_MODE_STRINGS:
-            if self._hypervolt_coordinator.api.get_charger_major_version() == 2:
-                await self._hypervolt_coordinator.api.set_schedule(
-                    self._hypervolt_coordinator.api_session,
+            if self.coordinator.api.get_charger_major_version() == 2:
+                await self.coordinator.api.set_schedule(
+                    self.coordinator.api_session,
                     HypervoltActivationMode(
                         self._ACTIVATION_MODE_STRINGS.index(option)
                     ),
-                    self._hypervolt_coordinator.data.schedule_intervals,
-                    self._hypervolt_coordinator.data.schedule_type,
-                    self._hypervolt_coordinator.data.schedule_tz,
+                    self.coordinator.data.schedule_intervals,
+                    self.coordinator.data.schedule_type,
+                    self.coordinator.data.schedule_tz,
                 )
                 # Read back schedule from API so that we're up to date
-                await self._hypervolt_coordinator.api.v2_update_state_from_schedule(
-                    self._hypervolt_coordinator.api_session,
-                    self._hypervolt_coordinator.data,
+                await self.coordinator.api.v2_update_state_from_schedule(
+                    self.coordinator.api_session,
+                    self.coordinator.data,
                 )
             else:
-                await self._hypervolt_coordinator.api.v3_set_schedule_enabled(
+                await self.coordinator.api.v3_set_schedule_enabled(
                     HypervoltActivationMode(self._ACTIVATION_MODE_STRINGS.index(option))
                     == HypervoltActivationMode.SCHEDULE
                 )

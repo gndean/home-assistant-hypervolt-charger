@@ -61,14 +61,14 @@ class HypervoltChargerName(HypervoltEntity, TextEntity):
     @property
     def native_value(self) -> str | None:
         """Return the current charger name."""
-        return self._hypervolt_coordinator.data.charger_name
+        return self.coordinator.data.charger_name
 
     async def async_set_value(self, value: str) -> None:
         """Set the charger name."""
-        await self._hypervolt_coordinator.api.set_charger_name(value)
+        await self.coordinator.api.set_charger_name(value)
 
         # Optimistically update the state
-        self._hypervolt_coordinator.data.charger_name = value
+        self.coordinator.data.charger_name = value
         self.async_write_ha_state()
 
 
@@ -94,7 +94,7 @@ class HypervoltScheduleDaysOfWeek(HypervoltEntity, TextEntity):
     @property
     def native_value(self) -> time | None:
         """Return the start or end time defined in the schedule, or None if the session doesn't exist."""
-        intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
+        intervals = self.coordinator.data.schedule_intervals_to_apply
         if (
             intervals
             and len(intervals) > self.interval_index
@@ -121,7 +121,7 @@ class HypervoltScheduleDaysOfWeek(HypervoltEntity, TextEntity):
             new_intervals: list[HypervoltScheduleInterval] = [
                 None
             ] * NUM_SCHEDULE_INTERVALS
-            intervals = self._hypervolt_coordinator.data.schedule_intervals_to_apply
+            intervals = self.coordinator.data.schedule_intervals_to_apply
             if intervals:
                 for i, interval in enumerate(intervals):
                     new_intervals[i] = deepcopy(interval)
@@ -131,4 +131,4 @@ class HypervoltScheduleDaysOfWeek(HypervoltEntity, TextEntity):
                     None, None
                 )
             new_intervals[self.interval_index].days_of_week = days
-            self._hypervolt_coordinator.data.schedule_intervals_to_apply = new_intervals
+            self.coordinator.data.schedule_intervals_to_apply = new_intervals

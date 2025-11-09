@@ -31,14 +31,14 @@ async def async_setup_entry(
 class HypervoltChargingSwitch(HypervoltEntity, SwitchEntity):
     @property
     def is_on(self):
-        device_state = self._hypervolt_coordinator.data
+        device_state = self.coordinator.data
         return device_state.is_charging
 
     async def async_turn_on(self):
-        await self._hypervolt_coordinator.api.set_charging(True)
+        await self.coordinator.api.set_charging(True)
 
     async def async_turn_off(self):
-        await self._hypervolt_coordinator.api.set_charging(False)
+        await self.coordinator.api.set_charging(False)
 
     @property
     def unique_id(self):
@@ -52,20 +52,20 @@ class HypervoltChargingSwitch(HypervoltEntity, SwitchEntity):
 class HypervoltLockStateSwitch(HypervoltEntity, SwitchEntity):
     @property
     def is_on(self):
-        device_state = self._hypervolt_coordinator.data
+        device_state = self.coordinator.data
         return (
             device_state.lock_state == HypervoltLockState.LOCKED
             or device_state.lock_state == HypervoltLockState.PENDING_LOCK
         )
 
     async def async_turn_on(self):
-        await self._hypervolt_coordinator.api.set_lock_state(
-            self._hypervolt_coordinator.api_session, True
+        await self.coordinator.api.set_lock_state(
+            self.coordinator.api_session, True
         )
 
     async def async_turn_off(self):
-        await self._hypervolt_coordinator.api.set_lock_state(
-            self._hypervolt_coordinator.api_session, False
+        await self.coordinator.api.set_lock_state(
+            self.coordinator.api_session, False
         )
 
     @property

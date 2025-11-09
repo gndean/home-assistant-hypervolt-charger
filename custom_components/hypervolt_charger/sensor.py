@@ -182,7 +182,15 @@ class HypervoltSensor(HypervoltEntity, SensorEntity):
 
     @property
     def native_value(self):
-        val = getattr(self._hypervolt_coordinator.data, self.hv_state_property_name)
+        val = getattr(self.coordinator.data, self.hv_state_property_name)
+        _LOGGER.debug(
+            "Sensor %s native_value: property=%s, val=%s, available=%s, last_update_success=%s",
+            self.hv_name,
+            self.hv_state_property_name,
+            val,
+            self.available,
+            self.coordinator.last_update_success,
+        )
         if self.hv_scale_factor and val:
             return val * self.hv_scale_factor
         else:
@@ -217,17 +225,14 @@ class ChargingReadinessSensor(HypervoltEntity, SensorEntity):
     @property
     def native_value(self):
         if (
-            self._hypervolt_coordinator.data.is_charging is None
-            or self._hypervolt_coordinator.data.release_state is None
+            self.coordinator.data.is_charging is None
+            or self.coordinator.data.release_state is None
         ):
             return None
 
-        if self._hypervolt_coordinator.data.is_charging:
+        if self.coordinator.data.is_charging:
             return "Charging"
-        elif (
-            self._hypervolt_coordinator.data.release_state
-            == HypervoltReleaseState.RELEASED
-        ):
+        elif self.coordinator.data.release_state == HypervoltReleaseState.RELEASED:
             return "Not Ready - Force Stopped"
         else:
             return "Ready"
