@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry, ConfigType
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_CHARGER_ID
+from .const import DOMAIN, CONF_CHARGER_ID, CONF_PASSWORD, CONF_USERNAME
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
-from .utils import get_version_from_manifest
 from .service import async_setup_services
+from .utils import get_version_from_manifest
+
+# Indicates this integration can only be set up via config entries
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # There should be a file for each of the declared platforms e.g. sensor.py
 PLATFORMS: list[Platform] = [
