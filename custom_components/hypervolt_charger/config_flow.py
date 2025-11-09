@@ -9,8 +9,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .utils import get_version_from_manifest
@@ -56,15 +56,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step. Display form to prompt for login creds"""
         # Show the login form
         return self.async_show_form(step_id="login", data_schema=STEP_LOGIN_SCHEMA)
 
     async def async_step_login(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle results from the login creds entry"""
+    ) -> ConfigFlowResult:
+        """Handle results from the login creds entry."""
+        if user_input is None:
+            return self.async_show_form(step_id="login", data_schema=STEP_LOGIN_SCHEMA)
+
         # Store the user input for when we complete the config
         # and create the entry, as there may be more config steps
         self.login_user_input = user_input
@@ -113,14 +116,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="login", data_schema=STEP_LOGIN_SCHEMA, errors=errors
         )
 
-    async def async_complete_setup(self, charger_id: str) -> FlowResult:
-        """Complete the setup with the given charger_id
-        Raises AbortFlow if the charger_id is already configured"""
+    async def async_complete_setup(self, charger_id: str) -> ConfigFlowResult:
+        """Complete the setup with the given charger_id.
+
+        Raises AbortFlow if the charger_id is already configured.
+        """
         # Ensure this charger is unique
         await self.async_set_unique_id(charger_id)
         self._abort_if_unique_id_configured()
 
         # Store charger ID into config
+        assert self.login_user_input is not None
         self.login_user_input["charger_id"] = charger_id
 
         return self.async_create_entry(
@@ -132,42 +138,42 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     # so its a bit clunky and hopefully we've added enough
     async def async_step_charger_0(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[0]["id"])
 
     async def async_step_charger_1(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[1]["id"])
 
     async def async_step_charger_2(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[2]["id"])
 
     async def async_step_charger_3(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[3]["id"])
 
     async def async_step_charger_4(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[4]["id"])
 
     async def async_step_charger_5(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[5]["id"])
 
     async def async_step_charger_6(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[6]["id"])
 
     async def async_step_charger_7(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         return await self.async_complete_setup(self.chargers[7]["id"])
 
     @staticmethod
@@ -189,7 +195,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
