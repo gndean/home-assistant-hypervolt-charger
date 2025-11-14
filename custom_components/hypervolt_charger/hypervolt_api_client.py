@@ -320,6 +320,9 @@ class HypervoltApiClient:
         self.last_websocket_activity_time = datetime.now(UTC)
 
         try:
+            # Debug: Log ALL incoming messages to help discover LED mode fields
+            _LOGGER.info("DEBUG: Received websocket message: %s", message)
+            
             # Example messages:
             # {"jsonrpc":"2.0","id":"0","result":[{"brightness":0.25},{"lock_state":"unlocked"},{"release_state":"default"},{"max_current":32000},{"ct_flags":1},{"solar_mode":"boost"},{"features":["super_eco"]},{"random_start":true}]}
             # or
@@ -929,7 +932,13 @@ class HypervoltApiClient:
 
     def on_message_sync_snapshot(self, result: list, state: HypervoltDeviceState):
         """Handle an update in the device state from the /sync websocket"""
+        # Debug: Log the full result to help discover LED mode fields
+        _LOGGER.info("DEBUG: sync_snapshot result: %s", result)
+        
         for item in result:
+            # Debug: Log each item to see all available fields
+            _LOGGER.info("DEBUG: Processing sync item: %s", item)
+            
             # Only update state if properties are present, other leave state as-is
             if "brightness" in item:
                 state.led_brightness = item["brightness"]
@@ -943,6 +952,13 @@ class HypervoltApiClient:
                 state.release_state = HypervoltReleaseState[
                     item["release_state"].upper()
                 ]
+            
+            # Debug: Check for any LED-related fields we might not be handling yet
+            led_related_keys = [k for k in item.keys() if 'led' in k.lower()]
+            if led_related_keys:
+                _LOGGER.warning("DEBUG: Found LED-related keys: %s with values: %s", 
+                              led_related_keys, 
+                              {k: item[k] for k in led_related_keys})
 
     def on_message_session(self, result: dict, state: HypervoltDeviceState):
         """Handle an update to the current charging session."""
