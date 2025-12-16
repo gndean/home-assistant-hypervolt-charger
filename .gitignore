@@ -1,3 +1,25 @@
 custom_components/hypervolt_charger/__pycache__/
 custom_components/hypervolt_charger/DEVELOPER.md
 custom_components/hypervolt_charger/README.md
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtualenvs
+.venv/
+venv/
+
+# Test/coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type-checker/linter caches
+.mypy_cache/
+.ruff_cache/
+
+# Packaging/build outputs
+*.egg-info/
+dist/
+build/
