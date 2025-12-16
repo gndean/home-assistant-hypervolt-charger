@@ -55,6 +55,33 @@ def ratio_to_percent(ratio: float | None) -> int | None:
     return clamp_percent(round(ratio * 100))
 
 
+def ratio_to_ha_brightness(ratio: float | None) -> int | None:
+    """Convert Hypervolt brightness ratio (0.0-1.0) to HA brightness (0-255)."""
+    return percent_to_ha_brightness(ratio_to_percent(ratio))
+
+
+def update_last_non_zero(
+    *,
+    previous_last_non_zero: int | None,
+    current_percent: int | None,
+) -> int | None:
+    """Update the last non-zero percent from a confirmed current percent.
+
+    Rules:
+    - If current_percent is None: return previous.
+    - If current_percent == 0: do not overwrite previous.
+    - If current_percent > 0: set to current (clamped).
+    """
+    if current_percent is None:
+        return previous_last_non_zero
+
+    current_percent = clamp_percent(int(current_percent))
+    if current_percent <= 0:
+        return previous_last_non_zero
+
+    return current_percent
+
+
 def choose_turn_on_percent(
     *,
     brightness: int | None,

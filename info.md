@@ -12,4 +12,6 @@ A Home Assistant Custom Component integration for the Hypervolt electric vehicle
 
 Once installed within Home Assistant, and having restarted Home Assistant, you should be able to add the Hypervolt Charger integration. You'll be asked for your Hypervolt account credentials then the integration should find your charger and create a Device with the name of your charger's serial number. The various entities can then be added to dashboards, automations etc. as you wish.
 
+LED brightness is now exposed as a Home Assistant light entity (recommended for scenes/automations). The legacy percent number entity remains available for backwards compatibility, but is disabled by default for new installs.
+
 <img src="https://github.com/gndean/home-assistant-hypervolt-charger/blob/main/demo.gif?raw=true" alt="Demo">

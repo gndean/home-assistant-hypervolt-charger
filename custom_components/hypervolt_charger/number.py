@@ -26,6 +26,8 @@ async def async_setup_entry(
 
 
 class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
+    _attr_entity_registry_enabled_default = False
+
     def __init__(self, coordinator):
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator)

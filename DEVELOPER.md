@@ -38,6 +38,18 @@ The integration maintains persistent WebSocket connections that automatically re
 
 ---
 
+## Running Tests Locally
+
+This repository includes lightweight unit tests that do not require Home Assistant to be installed.
+
+- Run unit tests: `python3 -m unittest -v`
+
+Or, if you prefer pytest: `python3 -m pip install pytest` then `pytest`
+
+Optional (heavier) Home Assistant-style pytest tests can be added/used via `requirements_test.txt`.
+
+---
+
 ## Component Overview
 
 ### File Structure
@@ -52,9 +64,11 @@ hypervolt_charger/
 ├── hypervolt_api_client.py              # API client & WebSocket handler
 ├── hypervolt_device_state.py            # State models and enums
 ├── hypervolt_entity.py                  # Base entity class
+├── led_brightness.py                    # Pure LED brightness mapping helpers (unit-testable without HA)
 ├── sensor.py                            # Sensor entities
 ├── switch.py                            # Switch entities
 ├── number.py                            # Number entities
+├── light.py                             # Light entities
 ├── select.py                            # Select entities
 ├── button.py                            # Button entities
 ├── binary_sensor.py                     # Binary sensor entities

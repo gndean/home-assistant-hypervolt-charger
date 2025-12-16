@@ -21,6 +21,7 @@ from .led_brightness import (
     clamp_percent,
     percent_to_ha_brightness,
     ratio_to_percent,
+    update_last_non_zero,
 )
 from .hypervolt_entity import HypervoltEntity
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
@@ -68,8 +69,10 @@ class HypervoltLedBrightnessLight(HypervoltEntity, RestoreEntity, LightEntity):
     def _handle_coordinator_update(self) -> None:
         # Track "last non-zero" from any confirmed coordinator update.
         percent = ratio_to_percent(self.coordinator.data.led_brightness)
-        if percent is not None and percent > 0:
-            self._last_non_zero_brightness_pct = percent
+        self._last_non_zero_brightness_pct = update_last_non_zero(
+            previous_last_non_zero=self._last_non_zero_brightness_pct,
+            current_percent=percent,
+        )
 
         super()._handle_coordinator_update()
 
