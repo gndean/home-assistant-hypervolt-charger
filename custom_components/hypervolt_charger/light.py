@@ -144,7 +144,7 @@ class HypervoltLedBrightnessLight(HypervoltEntity, RestoreEntity, LightEntity):
 
     @property
     def unique_id(self) -> str:
-        return super().unique_id + "_led_brightness_light"
+        return super().unique_id + "_led_brightness"
 
     @property
     def name(self) -> str:
