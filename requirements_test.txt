@@ -1,4 +1,4 @@
-pytest
-pytest-homeassistant-custom-component
-websockets
-aiofiles
+pytest==8.3.3
+pytest-homeassistant-custom-component==0.13.110
+websockets>=11.0.03
+aiofiles==24.1.0
