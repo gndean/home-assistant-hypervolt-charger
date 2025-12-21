@@ -42,7 +42,7 @@ class HypervoltDayOfWeek(Enum):
 
 
 # The number of schedule intervals / sessions we support via the UI
-NUM_SCHEDULE_INTERVALS = 4
+NUM_SCHEDULE_INTERVALS = 6
 
 
 class HypervoltScheduleInterval:
