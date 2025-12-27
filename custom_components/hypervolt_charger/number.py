@@ -1,14 +1,10 @@
-import datetime
-import json
+"""Number entities for the Hypervolt Charger integration."""
 
-from homeassistant.components.number import NumberEntity
-from dataclasses import dataclass
-from typing import Optional
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.core import HomeAssistant
 from homeassistant.const import PERCENTAGE
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 from .hypervolt_entity import HypervoltEntity
@@ -21,12 +17,16 @@ async def async_setup_entry(
     coordinator: HypervoltUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     async_add_entities(
-        [LedBrightnessNumberEntity(coordinator), MaxCurrentNumberEntity(coordinator)]
+        [
+            LedBrightnessNumberEntity(coordinator),
+            MaxCurrentNumberEntity(coordinator),
+            LedTestIndexNumberEntity(coordinator),
+        ]
     )
 
 
 class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
-    def __init__(self, coordinator):
+    def __init__(self, coordinator) -> None:
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator)
 
@@ -39,11 +39,10 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
         return super().name + " LED Brightness"
 
     @property
-    def native_value(self):
+    def native_value(self) -> float | None:
         if self.coordinator.data.led_brightness is None:
             return None
-        else:
-            return self.coordinator.data.led_brightness * 100
+        return self.coordinator.data.led_brightness * 100
 
     @property
     def native_min_value(self) -> float:
@@ -63,12 +62,12 @@ class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
         await self.coordinator.api.set_led_brightness(value)
 
     @property
-    def native_unit_of_measurement(self) -> Optional[str]:
+    def native_unit_of_measurement(self) -> str | None:
         return PERCENTAGE
 
 
 class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
-    def __init__(self, coordinator):
+    def __init__(self, coordinator) -> None:
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator)
 
@@ -81,11 +80,10 @@ class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
         return super().name + " Max Current"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> float | None:
         if self.coordinator.data.max_current_milliamps is None:
             return None
-        else:
-            return self.coordinator.data.max_current_milliamps / 1000
+        return self.coordinator.data.max_current_milliamps / 1000
 
     @property
     def native_min_value(self) -> int:
@@ -100,5 +98,47 @@ class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
         await self.coordinator.api.set_max_current_milliamps(value * 1000)
 
     @property
-    def native_unit_of_measurement(self) -> Optional[str]:
+    def native_unit_of_measurement(self) -> str | None:
         return "A"
+
+
+class LedTestIndexNumberEntity(HypervoltEntity, NumberEntity):
+    def __init__(self, coordinator) -> None:
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator)
+        self._value: int = 0
+
+    @property
+    def unique_id(self):
+        return super().unique_id + "_led_test_index"
+
+    @property
+    def name(self):
+        return super().name + " LED Test Index"
+
+    @property
+    def native_value(self) -> int:
+        return self._value
+
+    @property
+    def mode(self) -> NumberMode:
+        return NumberMode.SLIDER
+
+    @property
+    def native_min_value(self) -> int:
+        return 0
+
+    @property
+    def native_max_value(self) -> int:
+        return 50
+
+    @property
+    def native_step(self) -> int:
+        return 1
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Update the current value."""
+        index = int(value)
+        self._value = index
+        await self.coordinator.api.set_single_led_on(index)
+        self.async_write_ha_state()

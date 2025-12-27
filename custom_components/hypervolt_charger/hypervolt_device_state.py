@@ -111,3 +111,11 @@ class HypervoltDeviceState:
 
         # Charger name (user-defined)
         self.charger_name: str | None = None
+
+        # LED lighting state
+        # Note: the Hypervolt APIs do not reliably provide these values back to us yet,
+        # so these are treated as best-effort / optimistic values.
+        self.led_effect_name: str = "none"
+        self.led_effect_label: str | None = None
+        self.led_static_rgb_color: tuple[int, int, int] = (255, 255, 255)
+        self.led_last_nonzero_brightness: float = 1.0

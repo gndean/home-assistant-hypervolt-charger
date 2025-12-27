@@ -2,6 +2,7 @@ import asyncio
 import logging
 import async_timeout
 import aiohttp
+from pathlib import Path
 
 from datetime import timedelta, datetime, UTC
 from homeassistant.core import HomeAssistant
@@ -16,6 +17,8 @@ from .hypervolt_api_client import HypervoltApiClient, InvalidAuth
 from .hypervolt_device_state import (
     HypervoltDeviceState,
 )
+
+from .led_effects import LedEffectDefinition, async_load_led_effect_definitions
 
 from .const import DOMAIN, CONF_ENABLE_STALENESS_DETECTION
 
@@ -44,6 +47,12 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         )
         _LOGGER.debug("Create_hypervolt_coordinator HypervoltUpdateCoordinator created")
 
+        # Load any drop-in LED effect definitions for use by the light platform.
+        # This is best-effort; failures should not prevent the integration loading.
+        coordinator.led_effect_definitions = await async_load_led_effect_definitions(
+            (Path(__file__).resolve().parent / "led_effects")
+        )
+
         return coordinator
 
     def __init__(
@@ -64,6 +73,9 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
 
         self.api_session = None
         self.data = HypervoltDeviceState(self.api.charger_id)
+
+        # Drop-in LED effect definitions loaded from `led_effects/*.json`.
+        self.led_effect_definitions: dict[str, LedEffectDefinition] = {}
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
 

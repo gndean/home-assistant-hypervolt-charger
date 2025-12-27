@@ -40,6 +40,8 @@ class InvalidAuth(HomeAssistantError):
 
 
 class HypervoltApiClient:
+    """Client for the Hypervolt cloud API and sync websocket."""
+
     def __init__(self, version, username, password, charger_id=None) -> None:
         """Set charger_id if known, or None during config, to allow chargers to be enumerated after login()."""
         self.version = version
@@ -715,6 +717,173 @@ class HypervoltApiClient:
         }
         await self.send_message_to_sync(message)
 
+    async def set_led_effect_name(self, effect_name: str) -> None:
+        """Set the LED effect by name.
+
+        The Hypervolt backend accepts these via the sync websocket using:
+        {"method": "sync.apply", "params": {"effect_name": "<name>"}}
+        """
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "sync.apply",
+            "params": {"effect_name": effect_name},
+        }
+        await self.send_message_to_sync(message)
+
+    async def set_led_effect(
+        self,
+        effect_name: str,
+        leds: list[dict[str, float]] | None = None,
+    ) -> None:
+        """Apply an LED effect.
+
+        If `leds` is provided, it will be included in the payload. This is used
+        for effects implemented as a static LED array (e.g., `steady_array`).
+        """
+        params: dict[str, Any] = {"effect_name": effect_name}
+        if leds is not None:
+            params["leds"] = leds
+
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "sync.apply",
+            "params": params,
+        }
+        await self.send_message_to_sync(message)
+
+    async def set_led_static_rgb_color(
+        self,
+        rgb_color: tuple[int, int, int],
+        led_count: int = 51,
+    ) -> None:
+        """Set a static RGB color across all LEDs.
+
+        This uses the "steady_array" effect and sets each LED entry to the same
+        RGB values, expressed in the range [0.0, 1.0].
+        """
+        r, g, b = rgb_color
+        led = {
+            "r": float(r) / 255.0,
+            "g": float(g) / 255.0,
+            "b": float(b) / 255.0,
+        }
+
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "sync.apply",
+            "params": {"effect_name": "steady_array", "leds": [led] * led_count},
+        }
+        await self.send_message_to_sync(message)
+
+    async def set_led_peace_mode(self) -> None:
+        """Set the Peace LED mode.
+
+        The Hypervolt app appears to implement this as a "steady_array" payload
+        (not just an effect_name).
+        """
+        # Derived from the provided example payload. Values are floats in [0.0, 1.0].
+        leds: list[dict[str, float]] = [
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.5, "g": 0.59, "b": 0.36},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 0.5, "g": 0.59, "b": 0.36},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 1.0, "g": 0.84, "b": 0.0},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+            {"r": 0.0, "g": 0.34, "b": 0.72},
+        ]
+
+        await self.set_led_effect("steady_array", leds)
+
+    # LED order:
+    #    8           0
+    #  9 +-----------+ 38
+    #    |-----------|
+    #    |-------50--|
+    #    |-----47----|
+    #    |---43------|
+    #    |------42---|
+    #    |---39------|
+    #    |-----------|
+    # 19 +-----------+ 28
+    #   20          27
+
+    async def set_single_led_on(
+        self,
+        index: int,
+        led_count: int = 51,
+        color: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        off_color: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> None:
+        """Set a single LED on at the given index and turn all others off.
+
+        This sends a JSON-RPC payload to the sync websocket using the
+        "steady_array" effect.
+        """
+        if led_count <= 0:
+            raise ValueError("led_count must be > 0")
+        if not 0 <= index < led_count:
+            raise ValueError("index must be within [0, led_count)")
+
+        on_r, on_g, on_b = color
+        off_r, off_g, off_b = off_color
+
+        leds: list[dict[str, float]] = [
+            {"r": float(off_r), "g": float(off_g), "b": float(off_b)}
+            for _ in range(led_count)
+        ]
+        leds[index] = {"r": float(on_r), "g": float(on_g), "b": float(on_b)}
+
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "sync.apply",
+            "params": {"effect_name": "steady_array", "leds": leds},
+        }
+        await self.send_message_to_sync(message)
+
     async def set_max_current_milliamps(self, value: int):
         """Set the Max Current Limit, in the range [6, 32]"""
         message = {
@@ -933,6 +1102,10 @@ class HypervoltApiClient:
             # Only update state if properties are present, other leave state as-is
             if "brightness" in item:
                 state.led_brightness = item["brightness"]
+                if state.led_brightness and state.led_brightness > 0:
+                    state.led_last_nonzero_brightness = state.led_brightness
+            if "effect_name" in item:
+                state.led_effect_name = item["effect_name"]
             if "lock_state" in item:
                 state.lock_state = HypervoltLockState[item["lock_state"].upper()]
             if "max_current" in item:
