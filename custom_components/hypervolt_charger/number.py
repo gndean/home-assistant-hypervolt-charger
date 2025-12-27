@@ -20,12 +20,13 @@ async def async_setup_entry(
         [
             LedBrightnessNumberEntity(coordinator),
             MaxCurrentNumberEntity(coordinator),
-            LedTestIndexNumberEntity(coordinator),
         ]
     )
 
 
 class LedBrightnessNumberEntity(HypervoltEntity, NumberEntity):
+    _attr_entity_registry_enabled_default = False
+
     def __init__(self, coordinator) -> None:
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator)
@@ -100,45 +101,3 @@ class MaxCurrentNumberEntity(HypervoltEntity, NumberEntity):
     @property
     def native_unit_of_measurement(self) -> str | None:
         return "A"
-
-
-class LedTestIndexNumberEntity(HypervoltEntity, NumberEntity):
-    def __init__(self, coordinator) -> None:
-        """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator)
-        self._value: int = 0
-
-    @property
-    def unique_id(self):
-        return super().unique_id + "_led_test_index"
-
-    @property
-    def name(self):
-        return super().name + " LED Test Index"
-
-    @property
-    def native_value(self) -> int:
-        return self._value
-
-    @property
-    def mode(self) -> NumberMode:
-        return NumberMode.SLIDER
-
-    @property
-    def native_min_value(self) -> int:
-        return 0
-
-    @property
-    def native_max_value(self) -> int:
-        return 50
-
-    @property
-    def native_step(self) -> int:
-        return 1
-
-    async def async_set_native_value(self, value: float) -> None:
-        """Update the current value."""
-        index = int(value)
-        self._value = index
-        await self.coordinator.api.set_single_led_on(index)
-        self.async_write_ha_state()

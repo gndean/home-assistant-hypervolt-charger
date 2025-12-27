@@ -1,0 +1,28 @@
+# Defines the LED colours for this effect name
+# Set a default colour for the LEDs, then override specific segments and/or indices.
+#
+# There are 51 LEDs, indexed 0-50, and their physical order is as follows:
+#    8           0
+#  9 +-----------+ 38
+#    |-----------|
+#    |-------50--|
+#    |-----47----|
+#    |---43------|
+#    |------42---|
+#    |---39------|
+#    |-----------|
+# 19 +-----------+ 28
+#    20         27
+#
+# i.e. The outer ring is 0-38 anticlockwise from the top-right
+# and the lightning bolt is 39-50, from the bottom to top
+
+name: Peace
+default_colour: "#0057B8"
+segments:
+  - colour: "#FFD600"
+    ranges:
+      - [15, 32]
+      - [39, 42]
+  - colour: "#80965C"
+    indices: [14, 33]

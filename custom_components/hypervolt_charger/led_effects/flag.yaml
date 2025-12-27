@@ -1,0 +1,38 @@
+# Defines the LED colours for this effect name
+# Set a default colour for the LEDs, then override specific segments and/or indices.
+#
+# There are 51 LEDs, indexed 0-50, and their physical order is as follows:
+#    8           0
+#  9 +-----------+ 38
+#    |-----------|
+#    |-------50--|
+#    |-----47----|
+#    |---43------|
+#    |------42---|
+#    |---39------|
+#    |-----------|
+# 19 +-----------+ 28
+#    20         27
+#
+# i.e. The outer ring is 0-38 anticlockwise from the top-right
+# and the lightning bolt is 39-50, from the bottom to top
+
+name: Flag
+default_colour: "#FF0000"
+segments:
+  - colour: "#0000FF"
+    ranges:
+      - [6, 12]
+      - [25, 31]
+      - [48, 50]
+    indices: [39]
+  - colour: "#808080"
+    indices: [3, 5, 47]
+    ranges:
+      - [13, 15]
+      - [23, 24]
+      - [32, 34]
+  - colour: "#BFBFBF"
+    indices: [4, 43, 46]
+    ranges:
+      - [40, 41]

@@ -74,7 +74,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.api_session = None
         self.data = HypervoltDeviceState(self.api.charger_id)
 
-        # Drop-in LED effect definitions loaded from `led_effects/*.json`.
+        # Drop-in LED effect definitions loaded from `led_effects/*.{yaml,yml}`.
         self.led_effect_definitions: dict[str, LedEffectDefinition] = {}
         self.notify_on_hypervolt_sync_push_task = None
         self.notify_on_hypervolt_session_in_progress_push_task = None
@@ -113,7 +113,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         except Exception as exc:
             raise UpdateFailed() from exc
 
-        finally:
+            # Drop-in LED effect definitions loaded from `led_effects/*.{yaml,yml}`.
             _LOGGER.debug("HypervoltCoordinator _async_update_data exit")
 
     async def _update(self) -> HypervoltDeviceState:

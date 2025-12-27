@@ -95,6 +95,7 @@ class HypervoltLedLightEntity(HypervoltEntity, LightEntity):
             return None
         value = int(round(self.coordinator.data.led_brightness * 255))
         return max(0, min(255, value))
+        # Drop-in effect defined via `led_effects/*.yaml`.
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
@@ -162,7 +163,7 @@ class HypervoltLedLightEntity(HypervoltEntity, LightEntity):
             elif (
                 definition := self.coordinator.led_effect_definitions.get(effect)
             ) is not None:
-                # Drop-in effect defined via `led_effects/*.json`.
+                # Drop-in effect defined via `led_effects/*.yaml`.
                 await self.coordinator.api.set_led_effect(
                     definition.effect_name,
                     definition.leds,

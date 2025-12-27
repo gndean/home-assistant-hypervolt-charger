@@ -1,33 +1,30 @@
 """Load LED effect definitions for the Hypervolt Charger integration.
 
 This module provides a simple drop-in mechanism for additional LED effects.
-To add an effect, place a JSON file in the `led_effects/` folder.
+To add an effect, place a definition file in the `led_effects/` folder.
 
-Supported file format:
-- A JSON-RPC style payload (like captured from the Hypervolt app) that contains
-  `params.effect_name` and optionally `params.leds`.
-- Optional top-level `label` to control how the effect appears in the UI.
+Example YAML file:
 
-Example:
-{
-  "label": "My Effect",
-  "method": "sync.apply",
-  "params": {
-    "effect_name": "steady_array",
-    "leds": [{"r": 1.0, "g": 0.0, "b": 0.0}, ...]
-  }
-}
+name: Peace
+default_colour: "#0057B8"
+segments:
+  - colour: "#FFD600"
+    ranges:
+      - [15, 32]
+      - [39, 42]
+  - colour: "#80965C"
+    indices: [14, 33]
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
 import aiofiles
+import yaml
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,50 +43,133 @@ def _label_from_filename(path: Path) -> str:
     return " ".join(word.capitalize() for word in stem.split())
 
 
-def _normalize_led_entry(entry: dict[str, Any]) -> dict[str, float] | None:
-    try:
-        r = float(entry["r"])
-        g = float(entry["g"])
-        b = float(entry["b"])
-    except (KeyError, TypeError, ValueError):
+def _parse_hex_colour(value: Any) -> dict[str, float] | None:
+    if not isinstance(value, str):
         return None
 
-    # Keep values as-is (Hypervolt payloads use floats in [0.0, 1.0]).
-    return {"r": r, "g": g, "b": b}
+    text = value.strip()
+    if text.startswith("#"):
+        text = text[1:]
+
+    if len(text) == 3:
+        text = "".join(ch * 2 for ch in text)
+
+    if len(text) != 6:
+        return None
+
+    try:
+        r = int(text[0:2], 16)
+        g = int(text[2:4], 16)
+        b = int(text[4:6], 16)
+    except ValueError:
+        return None
+
+    return {"r": r / 255.0, "g": g / 255.0, "b": b / 255.0}
+
+
+def _build_leds_from_segments(params: dict[str, Any]) -> list[dict[str, float]] | None:
+    led_count_raw = params.get("led_count", 51)
+    if not isinstance(led_count_raw, int) or led_count_raw <= 0:
+        return None
+
+    default = _parse_hex_colour(params.get("default_colour", "#000000"))
+    if default is None:
+        return None
+
+    leds: list[dict[str, float]] = [default.copy() for _ in range(led_count_raw)]
+
+    segments = params.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return None
+
+    for segment in segments:
+        if not isinstance(segment, dict):
+            return None
+
+        colour = _parse_hex_colour(segment.get("colour"))
+        if colour is None:
+            return None
+
+        indices: set[int] = set()
+
+        indices_raw = segment.get("indices")
+        if indices_raw is not None:
+            if not isinstance(indices_raw, list) or not all(
+                isinstance(i, int) for i in indices_raw
+            ):
+                return None
+            indices.update(indices_raw)
+
+        range_raw = segment.get("range")
+        if range_raw is not None:
+            if (
+                not isinstance(range_raw, list)
+                or len(range_raw) != 2
+                or not all(isinstance(i, int) for i in range_raw)
+            ):
+                return None
+            start, end = range_raw
+            if start > end:
+                start, end = end, start
+            indices.update(range(start, end + 1))
+
+        ranges_raw = segment.get("ranges")
+        if ranges_raw is not None:
+            if not isinstance(ranges_raw, list):
+                return None
+            for r in ranges_raw:
+                if (
+                    not isinstance(r, list)
+                    or len(r) != 2
+                    or not all(isinstance(i, int) for i in r)
+                ):
+                    return None
+                start, end = r
+                if start > end:
+                    start, end = end, start
+                indices.update(range(start, end + 1))
+
+        if not indices:
+            return None
+
+        for index in indices:
+            if not 0 <= index < led_count_raw:
+                return None
+            leds[index] = colour
+
+    return leds
 
 
 def _parse_definition(
     path: Path, payload: dict[str, Any]
 ) -> LedEffectDefinition | None:
-    params = payload.get("params")
-    if not isinstance(params, dict):
-        return None
+    params = payload
 
-    effect_name = params.get("effect_name")
-    if not isinstance(effect_name, str) or not effect_name:
-        return None
-
-    label = payload.get("label")
+    label = payload.get("name")
     if not isinstance(label, str) or not label:
         label = _label_from_filename(path)
 
-    leds_raw = params.get("leds")
-    if leds_raw is None:
-        return LedEffectDefinition(label=label, effect_name=effect_name, leds=None)
-
-    if not isinstance(leds_raw, list):
-        return None
-
-    leds: list[dict[str, float]] = []
-    for item in leds_raw:
-        if not isinstance(item, dict):
+    colours_raw = params.get("colours")
+    if colours_raw is not None:
+        if not isinstance(colours_raw, list):
             return None
-        normalized = _normalize_led_entry(item)
-        if normalized is None:
-            return None
-        leds.append(normalized)
 
-    return LedEffectDefinition(label=label, effect_name=effect_name, leds=leds)
+        leds: list[dict[str, float]] = []
+        for item in colours_raw:
+            led = _parse_hex_colour(item)
+            if led is None:
+                return None
+            leds.append(led)
+
+        return LedEffectDefinition(label=label, effect_name="steady_array", leds=leds)
+
+    if params.get("segments") is not None:
+        leds = _build_leds_from_segments(params)
+        if leds is None:
+            return None
+        return LedEffectDefinition(label=label, effect_name="steady_array", leds=leds)
+
+    return None
 
 
 async def async_load_led_effect_definitions(
@@ -102,24 +182,25 @@ async def async_load_led_effect_definitions(
 
     definitions: dict[str, LedEffectDefinition] = {}
 
-    for path in sorted(effects_dir.glob("*.json")):
+    paths = [*effects_dir.glob("*.yaml"), *effects_dir.glob("*.yml")]
+
+    for path in sorted(paths):
         try:
             async with aiofiles.open(path, "r", encoding="utf-8") as f:
                 raw = await f.read()
-            payload = json.loads(raw)
+
+            payload = yaml.safe_load(raw)
         except Exception as exc:  # noqa: BLE001 - best-effort loading of user files
-            _LOGGER.warning("Failed to read LED effect file %s: %s", path.name, exc)
+            _LOGGER.error("Failed to read LED effect file %s: %s", path.name, exc)
             continue
 
         if not isinstance(payload, dict):
-            _LOGGER.warning(
-                "Ignoring LED effect file %s: expected JSON object", path.name
-            )
+            _LOGGER.error("Ignoring LED effect file %s: expected object", path.name)
             continue
 
         definition = _parse_definition(path, payload)
         if definition is None:
-            _LOGGER.warning("Ignoring LED effect file %s: invalid format", path.name)
+            _LOGGER.error("Ignoring LED effect file %s: invalid format", path.name)
             continue
 
         # Later files with same label override earlier ones.
