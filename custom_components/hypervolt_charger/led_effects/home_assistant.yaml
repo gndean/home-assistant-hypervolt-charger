@@ -18,7 +18,7 @@
 # and the lightning bolt is 39-50, from the bottom to top
 
 name: Home Assistant
-default_colour: "#00D4FF" # Home assistant blue
+default_colour: "#00D4FF" # Home Assistant blue
 segments:
   - colour: "#FFFFFF"
     ranges:

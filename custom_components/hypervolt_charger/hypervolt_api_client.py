@@ -30,6 +30,10 @@ _LOGGER = logging.getLogger(__name__)
 
 MAX_STORED_SENT_MESSAGES = 20
 
+# Debounce LED updates to avoid generating excessive traffic to the Hypervolt
+# cloud API if users attempt to "animate" LEDs by rapidly updating effects.
+LED_SYNC_APPLY_DEBOUNCE_SECONDS = 3.0
+
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
@@ -64,6 +68,12 @@ class HypervoltApiClient:
         # This is used for staleness detection
         self.last_websocket_activity_time: datetime | None = None
 
+        # Coalesce / throttle LED-related sync.apply updates.
+        self._led_apply_lock = asyncio.Lock()
+        self._led_apply_pending_params: dict[str, Any] = {}
+        self._led_apply_task: asyncio.Task[None] | None = None
+        self._led_apply_last_sent: float = 0.0
+
     async def unload(self):
         """Call to close any websockets and cancel any work. This object cannot be used again"""
         _LOGGER.debug("Unload enter")
@@ -77,6 +87,90 @@ class HypervoltApiClient:
         if self.websocket_session_in_progress:
             await self.websocket_session_in_progress.close()
         self.websocket_session_in_progress = None
+
+        if self._led_apply_task is not None:
+            self._led_apply_task.cancel()
+        self._led_apply_task = None
+        self._led_apply_pending_params.clear()
+
+    async def _async_led_apply_flush(self, delay: float) -> None:
+        """Flush any pending LED parameters to the sync websocket.
+
+        This throttles rapid LED updates (brightness/effect/color) into a single
+        `sync.apply` call at most once per interval.
+        """
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            return
+
+        async with self._led_apply_lock:
+            params = self._led_apply_pending_params
+            self._led_apply_pending_params = {}
+            self._led_apply_task = None
+            self._led_apply_last_sent = asyncio.get_running_loop().time()
+
+        if not params:
+            return
+
+        message = {
+            "id": self.get_next_message_id(),
+            "method": "sync.apply",
+            "params": params,
+        }
+        await self.send_message_to_sync(message)
+
+    async def _queue_led_apply(
+        self,
+        params: dict[str, Any],
+        *,
+        clear_keys: set[str] | None = None,
+    ) -> None:
+        """Queue LED-related params and apply a simple leading-edge throttle.
+
+        The first update is sent immediately (no perceived lag). Subsequent
+        updates within the throttle window are coalesced and sent once the
+        window elapses.
+        """
+        now = asyncio.get_running_loop().time()
+        message: dict[str, Any] | None = None
+        delay: float | None = None
+
+        async with self._led_apply_lock:
+            if clear_keys:
+                for key in clear_keys:
+                    self._led_apply_pending_params.pop(key, None)
+
+            self._led_apply_pending_params.update(params)
+
+            elapsed = now - self._led_apply_last_sent
+
+            # If nothing is scheduled and we're outside the throttle window,
+            # send immediately (leading edge) with the coalesced params.
+            if (
+                self._led_apply_task is None
+                and elapsed >= LED_SYNC_APPLY_DEBOUNCE_SECONDS
+            ):
+                payload = self._led_apply_pending_params
+                self._led_apply_pending_params = {}
+                self._led_apply_last_sent = now
+                message = {
+                    "id": self.get_next_message_id(),
+                    "method": "sync.apply",
+                    "params": payload,
+                }
+            else:
+                # Ensure we have a single scheduled flush at the end of the
+                # current throttle window. We intentionally do not cancel and
+                # reschedule, to avoid pushing the send further out under load.
+                if self._led_apply_task is None:
+                    delay = max(0.0, LED_SYNC_APPLY_DEBOUNCE_SECONDS - elapsed)
+                    self._led_apply_task = asyncio.create_task(
+                        self._async_led_apply_flush(delay)
+                    )
+
+        if message is not None:
+            await self.send_message_to_sync(message)
 
     async def login(self, session: aiohttp.ClientSession) -> str:
         """If we have an access token, attempt to refresh it.
@@ -710,12 +804,7 @@ class HypervoltApiClient:
 
     async def set_led_brightness(self, value: float):
         """Set the LED brightness, in the range [0.0, 1.0]"""
-        message = {
-            "id": self.get_next_message_id(),
-            "method": "sync.apply",
-            "params": {"brightness": value / 100},
-        }
-        await self.send_message_to_sync(message)
+        await self._queue_led_apply({"brightness": value / 100})
 
     async def set_led_effect_name(self, effect_name: str) -> None:
         """Set the LED effect by name.
@@ -723,12 +812,9 @@ class HypervoltApiClient:
         The Hypervolt backend accepts these via the sync websocket using:
         {"method": "sync.apply", "params": {"effect_name": "<name>"}}
         """
-        message = {
-            "id": self.get_next_message_id(),
-            "method": "sync.apply",
-            "params": {"effect_name": effect_name},
-        }
-        await self.send_message_to_sync(message)
+        # If switching to a non-static effect by name, clear any queued LED array
+        # payload so we don't accidentally send stale "leds" data.
+        await self._queue_led_apply({"effect_name": effect_name}, clear_keys={"leds"})
 
     async def set_led_effect(
         self,
@@ -742,7 +828,13 @@ class HypervoltApiClient:
         """
 
         params: dict[str, Any] = {"effect_name": effect_name}
-        if leds is not None:
+
+        clear_keys: set[str] | None = None
+        if leds is None:
+            # If we're not sending an explicit LED array, ensure we don't send a
+            # previously queued one.
+            clear_keys = {"leds"}
+        else:
             params["leds"] = [
                 {
                     "r": round(float(led["r"]), 2),
@@ -752,12 +844,7 @@ class HypervoltApiClient:
                 for led in leds
             ]
 
-        message = {
-            "id": self.get_next_message_id(),
-            "method": "sync.apply",
-            "params": params,
-        }
-        await self.send_message_to_sync(message)
+        await self._queue_led_apply(params, clear_keys=clear_keys)
 
     async def set_led_static_rgb_color(
         self,

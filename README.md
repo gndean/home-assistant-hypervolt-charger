@@ -42,7 +42,7 @@ The integration is intended to match the features of the iOS and Android apps.
 | Hypervolt Charge Mode | Switches between `Boost`, `Eco`, and `Super Eco` modes. | |
 | Hypervolt Charger Name | The user-defined name for the charger. Can be read and updated. | This name is stored in the cloud and will be reflected in the Hypervolt mobile app. |
 | Hypervolt Max Current | Reads and sets the maximum charging current, in Amps. | |
-| Hypervolt LED Brightness | Reads and sets the LED brightness, in percent, as available via Settings within the app. | The LED Mode isn't currently supported by the integration. |
+| Hypervolt LED | Controls the charger's LEDs as an RGB light. Supports built-in effects and any custom effects loaded from the `led_effects` folder. | The Effect setting works as follows: `No effect` is equivalent to disabling the LED mode in the Hypervolt app and allows the charger to set the LED depending on state. In this case, the colour set in the integration is ignored. `Static` sets a single colour for all LEDs. All other effects are a preset pattern; either one of the built-in Hypervolt animations, or a static pattern as defined by the `led_effects` files. |
 | Hypervolt Schedule Session (n) Start/End Time | Represents the schedule start/end time for the given session number. The values are populated from the Hypervolt servers and then can be modified within Home Assistant. | Session times are not changed until the `Apply Schedule` button is pressed. This allows start and end times to be modified individually and all changes applied at once, to avoid invalid or undesirable schedules being applied while interim changes are being made. To delete a session, set the start and the end time to be the same value. Once applied, the session will be removed. |
 | Hypervolt Schedule Session (n) Charg Mode | The charging mode for the session slot | ⚠️V3 chargers only. Sessions not changed until the `Apply Schedule` button is pressed. |
 | Hypervolt Apply Schedule button | Press this button to apply the schedule session start and end times. Once successfully applied, the session times are read back from the API. This may cause the session time values to update, for example, any gaps in the sessions will be removed i.e. if session 1 and session 3 were populated only, once applied, session 1 and session 2 would be populated. Also any sessions where the start time equals the end time will be removed. | Applying the session times does not automatically switch the Hypervolt into Schedule mode. For that, use the `Activation Mode` select. |
@@ -52,6 +52,15 @@ The integration is intended to match the features of the iOS and Android apps.
 | Hypervolt Firmware Version | Displays the firmware version running on the charger. | The version format varies by charger model (e.g., "1234.0" for V3, "202111231810.abcdef" for V2). This is retrieved on initial connectiona and on access token refresh (approx every hour)
 | Hypervolt Session Carbon Saved, Hypervolt Session ID, Hypervolt Session Energy | Are fields related to the current, or most recent charging session. | `Hypervolt Session Energy` just reports the session energy exactly from the Hypervolt APIs and resets for each new session. The value may be noisy i.e. decrease slightly during the charging session and will reset each charging session. For this reason, it is not a good choice to use for energy measurement within Home Assistant. For that, use `Hypervolt Session Energy Total Increasing` instead. |
 | Hypervolt Session Energy Total Increasing | This is a sensor of state class [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) which means that it is suitable for energy measurement within Home Assistant. Unlike `Hypervolt Session Energy`, the value is not taken directly from the Hypervolt APIs, cannot decrease during a session and will only reset on a new charging session, for which the [total_increasing](https://developers.home-assistant.io/blog/2021/08/16/state_class_total/) logic will handle. For a discussion of why this sensor was created, see [Sensor provides negative value when reset (HA Energy Dashboard) #5](https://github.com/gndean/home-assistant-hypervolt-charger/issues/5) |
+| Hypervolt LED Brightness | Reads and sets the LED brightness, in percent, as available via Settings within the app. | ⚠️ Deprecated. Use the `Hypervolt LED` light entity instead. |
+
+## LED effects
+
+The integration ships with a set of example custom LED effects in the [led_effects](led_effects/) folder. You can add your own effect files by dropping them into [led_effects](led_effects/). A restart of the integration is required to pick up new files.
+
+Note that the charger only appears to support preset animations. It is not possible to define custom animations. This is a charger limitation.
+
+The integration applies throttling to the LED updates to prevent it being used for rapid animations as this could cause excessive load to the cloud servers, since every update requires API traffic. This is a deliberate integration design choice.
 
 # Services
 
@@ -86,4 +95,3 @@ It also has code to support an [intelligent_dispatching](https://bottlecapdave.g
 
 - Log in has to be via email address and password. Google or Apple login not supported
 - English language only
-- LED modes are not supported
