@@ -56,7 +56,7 @@ The integration is intended to match the features of the iOS and Android apps.
 
 ## LED effects
 
-The integration ships with a set of example custom LED effects in the [led_effects](led_effects/) folder. You can add your own effect files by dropping them into [led_effects](led_effects/). A restart of the integration is required to pick up new files.
+The integration ships with a set of example custom LED effects in the [led_effects](custom_components/hypervolt_charger/led_effects/) folder. You can add your own effect files by dropping them into [led_effects](custom_components/hypervolt_charger/led_effects/). A restart of the integration is required to pick up new files.
 
 Note that the charger only appears to support preset animations. It is not possible to define custom animations. This is a charger limitation.
 
