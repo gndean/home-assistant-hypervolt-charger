@@ -14,6 +14,7 @@ import websockets
 from websockets.legacy.client import WebSocketClientProtocol
 
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.util.dt import get_time_zone
 
 from .hypervolt_device_state import (
     HypervoltActivationMode,
@@ -1189,12 +1190,24 @@ class HypervoltApiClient:
 
                         # Handle either a time string or datetime string
                         if "T" in start_time_str:
-                            start_time = datetime.fromisoformat(start_time_str).time()
+                            start_time_dt = datetime.fromisoformat(start_time_str)
+                            tz = (
+                                get_time_zone(state.schedule_tz)
+                                if state.schedule_tz
+                                else get_time_zone("Europe/London")
+                            )
+                            start_time = start_time_dt.astimezone(tz).time()
                         else:
                             start_time = time.fromisoformat(start_time_str)
 
                         if "T" in end_time_str:
-                            end_time = datetime.fromisoformat(end_time_str).time()
+                            end_time_dt = datetime.fromisoformat(end_time_str)
+                            tz = (
+                                get_time_zone(state.schedule_tz)
+                                if state.schedule_tz
+                                else get_time_zone("Europe/London")
+                            )
+                            end_time = end_time_dt.astimezone(tz).time()
                         else:
                             end_time = time.fromisoformat(end_time_str)
 
