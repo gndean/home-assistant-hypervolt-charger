@@ -50,7 +50,8 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         # Load any drop-in LED effect definitions for use by the light platform.
         # This is best-effort; failures should not prevent the integration loading.
         coordinator.led_effect_definitions = await async_load_led_effect_definitions(
-            (Path(__file__).resolve().parent / "led_effects")
+            hass,
+            (Path(__file__).resolve().parent / "led_effects"),
         )
 
         return coordinator

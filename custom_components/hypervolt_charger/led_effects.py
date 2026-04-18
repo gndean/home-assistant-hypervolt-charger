@@ -26,6 +26,8 @@ from typing import Any
 import aiofiles
 import yaml
 
+from homeassistant.core import HomeAssistant
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -173,16 +175,22 @@ def _parse_definition(
 
 
 async def async_load_led_effect_definitions(
+    hass: HomeAssistant,
     effects_dir: Path,
 ) -> dict[str, LedEffectDefinition]:
     """Load LED effect definitions from the given directory."""
 
-    if not effects_dir.exists() or not effects_dir.is_dir():
+    def _find_files() -> list[Path]:
+        if not effects_dir.exists() or not effects_dir.is_dir():
+            return []
+        return [*effects_dir.glob("*.yaml"), *effects_dir.glob("*.yml")]
+
+    paths = await hass.async_add_executor_job(_find_files)
+
+    if not paths:
         return {}
 
     definitions: dict[str, LedEffectDefinition] = {}
-
-    paths = [*effects_dir.glob("*.yaml"), *effects_dir.glob("*.yml")]
 
     for path in sorted(paths):
         try:
