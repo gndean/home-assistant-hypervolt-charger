@@ -30,6 +30,7 @@ from .utils import get_days_from_days_of_week
 _LOGGER = logging.getLogger(__name__)
 
 MAX_STORED_SENT_MESSAGES = 20
+UPDATED_V2_FIRMWARE_MAX_LEN = 7
 
 # Debounce LED updates to avoid generating excessive traffic to the Hypervolt
 # cloud API if users attempt to "animate" LEDs by rapidly updating effects.
@@ -64,6 +65,7 @@ class HypervoltApiClient:
         self.access_token = None
         self.refresh_token = None
         self.access_token_expires_at_date: datetime | None = None
+        self.firmware_version: str | None = None
 
         # Track when we last had websocket activity - either connection or message received
         # This is used for staleness detection
@@ -494,6 +496,16 @@ class HypervoltApiClient:
                     # Handle firmware version response.
                     # Result is a string like "2483.0 or 202111231810.abcdef".
                     state.firmware_version = result
+                    self.firmware_version = result if isinstance(result, str) else None
+
+                    # Some V2 chargers on updated firmware use V3 APIs.
+                    # Once we know this from firmware, request V3 state payloads.
+                    if (
+                        self.get_charger_major_version() == 2
+                        and self.get_charger_api_version() >= 3
+                    ):
+                        await self.send_sync_schedule_request()
+                        await self.send_sync_plugncharge_request()
                 else:
                     self.on_message_charger_name(result, state)
 
@@ -880,7 +892,7 @@ class HypervoltApiClient:
 
     async def set_charge_mode(self, charge_mode: HypervoltChargeMode):
         """Set the charge mode from the passed in enum class"""
-        if self.get_charger_major_version() >= 3:
+        if self.get_charger_api_version() >= 3:
             message = {
                 "id": self.get_next_message_id(),
                 "method": "plugncharge.set",
@@ -940,7 +952,7 @@ class HypervoltApiClient:
         Schedule_type and schedule_tz should have been obtained via by getting the schedule first
         I've only seen type of: "restricted" so not sure what other values are valid.
         """
-        if self.get_charger_major_version() == 2:
+        if self.get_charger_api_version() == 2:
             schedule_intervals_to_push = []
             for schedule_interval in schedule_intervals:
                 schedule_intervals_to_push.append(
@@ -1068,14 +1080,34 @@ class HypervoltApiClient:
             # Take a guess
             return 3
 
+    def get_charger_api_version(self) -> int:
+        """Get which charger API variant to use (2 or 3)."""
+        major_version = self.get_charger_major_version()
+
+        # Native V3 chargers always use the V3 API.
+        if major_version >= 3:
+            return 3
+
+        # V2 chargers on legacy firmware use V2 APIs.
+        # Updated V2 firmware reports short versions like "1" or "1.0" and
+        # behaves like V3 for API calls.
+        firmware_version = self.firmware_version
+        if not firmware_version:
+            return 2
+
+        if len(firmware_version.strip()) <= UPDATED_V2_FIRMWARE_MAX_LEN:
+            return 3
+
+        return 2
+
     async def on_message_login(self, result: dict):
         """Handle a message from the /sync websocket that is a login response"""
         if result and "authenticated" in result and result["authenticated"]:
             # Get the various states, depending on what the charger supports
             await self.send_sync_snapshot_request()
 
-            if self.get_charger_major_version() >= 3:
-                # Version 3 chargers support schedules and plug and charge
+            if self.get_charger_api_version() >= 3:
+                # Version 3 API chargers support schedules and plug and charge
                 # Version 2 returns "schedules.get not allowed" and "plugncharge.get not allowed" for these
                 await self.send_sync_schedule_request()
                 await self.send_sync_plugncharge_request()
