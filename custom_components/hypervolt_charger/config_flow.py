@@ -20,6 +20,10 @@ from .const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_ENABLE_STALENESS_DETECTION,
+    CONF_API_VERSION_OVERRIDE,
+    API_VERSION_AUTO,
+    API_VERSION_V2,
+    API_VERSION_V3,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -204,6 +208,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_API_VERSION_OVERRIDE,
+                        default=self.config_entry.options.get(
+                            CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO
+                        ),
+                    ): vol.In([API_VERSION_AUTO, API_VERSION_V2, API_VERSION_V3]),
                     vol.Optional(
                         CONF_ENABLE_STALENESS_DETECTION,
                         default=self.config_entry.options.get(

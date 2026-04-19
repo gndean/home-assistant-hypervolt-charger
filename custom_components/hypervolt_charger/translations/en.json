@@ -28,11 +28,13 @@
     "step": {
       "init": {
         "title": "Advanced options",
-        "description": "**Websocket staleness detection** (V3 chargers only): Automatically reloads the integration if no updates are received for 4 minutes. This may help with connection issues but could cause unnecessary reloads. **Most users should leave this disabled.**",
+        "description": "**API mode**: Leave on Auto unless you know you need to force V2 or V3 behavior.\n\n**Websocket staleness detection** (V3 API mode only): Automatically reloads the integration if no updates are received for 4 minutes. This may help with connection issues but could cause unnecessary reloads. **Most users should leave this disabled.**",
         "data": {
+          "api_version_override": "API mode (auto/v2/v3)",
           "enable_staleness_detection": "Enable automatic recovery from stale connections"
         },
         "data_description": {
+          "api_version_override": "auto = infer from charger and firmware, v2 = force legacy APIs, v3 = force updated APIs",
           "enable_staleness_detection": "Only enable if you experience lack of regular power sensor data with your V3 charger"
         }
       }

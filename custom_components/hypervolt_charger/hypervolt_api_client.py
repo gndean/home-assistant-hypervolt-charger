@@ -16,6 +16,7 @@ from websockets.legacy.client import WebSocketClientProtocol
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.dt import get_time_zone
 
+from .const import API_VERSION_AUTO, API_VERSION_V2, API_VERSION_V3
 from .hypervolt_device_state import (
     HypervoltActivationMode,
     HypervoltChargeMode,
@@ -48,12 +49,20 @@ class InvalidAuth(HomeAssistantError):
 class HypervoltApiClient:
     """Client for the Hypervolt cloud API and sync websocket."""
 
-    def __init__(self, version, username, password, charger_id=None) -> None:
+    def __init__(
+        self,
+        version,
+        username,
+        password,
+        charger_id=None,
+        api_version_override: str = API_VERSION_AUTO,
+    ) -> None:
         """Set charger_id if known, or None during config, to allow chargers to be enumerated after login()."""
         self.version = version
         self.username = username
         self.password = password
         self.charger_id = charger_id
+        self.api_version_override = api_version_override
 
         self.websocket_sync: WebSocketClientProtocol | None = None
         self.websocket_session_in_progress: WebSocketClientProtocol | None = None
@@ -1088,6 +1097,12 @@ class HypervoltApiClient:
 
     def get_charger_api_version(self) -> int:
         """Get which charger API variant to use (2 or 3)."""
+        if self.api_version_override == API_VERSION_V2:
+            return 2
+
+        if self.api_version_override == API_VERSION_V3:
+            return 3
+
         major_version = self.get_charger_major_version()
 
         # Native V3 chargers always use the V3 API.

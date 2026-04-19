@@ -20,7 +20,12 @@ from .hypervolt_device_state import (
 
 from .led_effects import LedEffectDefinition, async_load_led_effect_definitions
 
-from .const import DOMAIN, CONF_ENABLE_STALENESS_DETECTION
+from .const import (
+    DOMAIN,
+    CONF_ENABLE_STALENESS_DETECTION,
+    CONF_API_VERSION_OVERRIDE,
+    API_VERSION_AUTO,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +42,13 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
     ) -> "HypervoltUpdateCoordinator":
         _LOGGER.debug("Create_hypervolt_coordinator enter")
 
-        api = HypervoltApiClient(version, username, password, charger_id)
+        api = HypervoltApiClient(
+            version,
+            username,
+            password,
+            charger_id,
+            config_entry.options.get(CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO),
+        )
         _LOGGER.debug(
             f"Create_hypervolt_coordinator HypervoltApiClient created, charger_id: {charger_id}"
         )
@@ -131,6 +142,11 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         try:
             _LOGGER.debug("Hypervolt _update enter")
 
+            # Keep API mode override in sync with latest options.
+            self.api.api_version_override = self.config_entry.options.get(
+                CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO
+            )
+
             # If we have an active session, check if it's actually alive
             if (
                 self.api_session
@@ -145,7 +161,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     self.config_entry.options.get(
                         CONF_ENABLE_STALENESS_DETECTION, False
                     )
-                    and self.api.get_charger_major_version() >= 3
+                    and self.api.get_charger_api_version() >= 3
                     and self._is_websocket_stale()
                 ):
                     # Check if we're in the backoff period after a recent stale reconnection attempt
@@ -211,7 +227,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 )
             )
 
-            if self.api.get_charger_major_version() == 2:
+            if self.api.get_charger_api_version() == 2:
                 # Version 2 sends messages when a session is in progress via in-progress websocket
                 # Version 3 uses the sync websocket for everything
                 self.notify_on_hypervolt_session_in_progress_push_task = (
@@ -309,6 +325,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         and if so, proactively refresh it.
         """
 
+        self.api.api_version_override = self.config_entry.options.get(
+            CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO
+        )
+
         seconds_to_expiry = (
             self.api.get_access_token_expiry() - datetime.now(UTC)
         ).total_seconds()
@@ -336,7 +356,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                 )
             )
 
-            if self.api.get_charger_major_version() == 2:
+            if self.api.get_charger_api_version() == 2:
                 # Version 2 sends messages when a session is in progress via in-progress websocket
                 # Version 3 uses the sync websocket for everything
                 self.notify_on_hypervolt_session_in_progress_push_task = (
@@ -353,7 +373,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         # If we're a v3 charger, we don't need to do anything, as everything is synced
         # via the sync websocket
         # If we're a v2 charger, we need to request the schedule via a specific endpoint
-        if self.api.get_charger_major_version() == 2:
+        if self.api.get_charger_api_version() == 2:
             _LOGGER.debug("Active session found, updating state")
             self.data = await self.api.v2_update_state_from_schedule(
                 self.api_session, self.data
