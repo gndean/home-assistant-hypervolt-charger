@@ -494,9 +494,15 @@ class HypervoltApiClient:
             elif method in ("firmware.version", "get.name"):
                 if method == "firmware.version":
                     # Handle firmware version response.
-                    # Result is a string like "2483.0 or 202111231810.abcdef".
+                    # Result is a string like "2483.2" or "202111231810.abcdef".
+                    # Upgraded V2 devices with Beta firmware return "1.0" or "1", or maybe as numbers, not strings?
+
+                    _LOGGER.debug(
+                        "Firmware version result: %s, type: %s", result, type(result)
+                    )
+
                     state.firmware_version = result
-                    self.firmware_version = result if isinstance(result, str) else None
+                    self.firmware_version = str(result)
 
                     # Some V2 chargers on updated firmware use V3 APIs.
                     # Once we know this from firmware, request V3 state payloads.
