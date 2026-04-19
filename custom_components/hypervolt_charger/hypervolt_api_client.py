@@ -470,6 +470,11 @@ class HypervoltApiClient:
 
                 if on_state_updated_async_callback:
                     await on_state_updated_async_callback(state)
+            elif method in ("plugncharge.get", "plugncharge.set"):
+                self.on_message_plugncharge(result, state)
+
+                if on_state_updated_async_callback:
+                    await on_state_updated_async_callback(state)
             elif method == "get.pilot_status":
                 if "pilot_status" in result:
                     # https://en.wikipedia.org/wiki/SAE_J1772#Control_Pilot
@@ -484,15 +489,13 @@ class HypervoltApiClient:
 
                 if on_state_updated_async_callback:
                     await on_state_updated_async_callback(state)
-            elif method == "firmware.version":
-                # Handle firmware version response
-                # Result is a string like "2483.0 or 202111231810.abcdef"
-                state.firmware_version = result
-
-                if on_state_updated_async_callback:
-                    await on_state_updated_async_callback(state)
-            elif method == "get.name":
-                self.on_message_charger_name(result, state)
+            elif method in ("firmware.version", "get.name"):
+                if method == "firmware.version":
+                    # Handle firmware version response.
+                    # Result is a string like "2483.0 or 202111231810.abcdef".
+                    state.firmware_version = result
+                else:
+                    self.on_message_charger_name(result, state)
 
                 if on_state_updated_async_callback:
                     await on_state_updated_async_callback(state)
@@ -877,11 +880,18 @@ class HypervoltApiClient:
 
     async def set_charge_mode(self, charge_mode: HypervoltChargeMode):
         """Set the charge mode from the passed in enum class"""
-        message = {
-            "id": self.get_next_message_id(),
-            "method": "sync.apply",
-            "params": {"solar_mode": charge_mode.name.lower()},
-        }
+        if self.get_charger_major_version() >= 3:
+            message = {
+                "id": self.get_next_message_id(),
+                "method": "plugncharge.set",
+                "params": {"mode": charge_mode.name.lower()},
+            }
+        else:
+            message = {
+                "id": self.get_next_message_id(),
+                "method": "sync.apply",
+                "params": {"solar_mode": charge_mode.name.lower()},
+            }
         await self.send_message_to_sync(message)
 
     async def set_charging(self, charging: bool):
@@ -1226,6 +1236,37 @@ class HypervoltApiClient:
 
                 # Copy to schedule_intervals_to_apply
                 state.schedule_intervals_to_apply = deepcopy(state.schedule_intervals)
+
+    def on_message_plugncharge(self, result: dict, state: HypervoltDeviceState):
+        """V3 only. Handle an update to plug and charge settings.
+        Example when getting:
+            {"jsonrpc":"2.0","method":"plugncharge.get","id":2}
+            -> {"jsonrpc":"2.0","id":2,"result":{"applied":"boost"}}
+        Example when setting:
+            {"jsonrpc":"2.0","method":"plugncharge.set","id":6,"params":{"mode":"boost"}}
+            -> {"jsonrpc":"2.0","id":6,"result":{"mode":"boost","applied":true}}"""
+        if not isinstance(result, dict):
+            return
+
+        applied = result.get("applied")
+        mode = None
+
+        if isinstance(applied, bool):
+            # For plugncharge.set responses, only apply mode changes if accepted.
+            if not applied:
+                return
+            mode = result.get("mode")
+        elif isinstance(applied, str):
+            # For plugncharge.get responses, applied is the active mode string.
+            mode = applied
+        else:
+            mode = result.get("mode")
+
+        if isinstance(mode, str):
+            try:
+                state.charge_mode = HypervoltChargeMode[mode.upper()]
+            except KeyError:
+                _LOGGER.warning("Unknown plug and charge mode: %s", mode)
 
     async def v3_set_schedule_enabled(self, schedule_enabled: bool):
         """V3 only. Set the schedule enabled/disabled"""
