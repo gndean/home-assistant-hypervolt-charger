@@ -31,10 +31,11 @@ The integration maintains persistent WebSocket connections that automatically re
 
 1. [Component Overview](#component-overview)
 2. [Setup Process](#setup-process)
-3. [Update Process](#update-process)
-4. [Component Lifecycle](#component-lifecycle)
-5. [Error Handling](#error-handling)
-6. [Data Flow Diagrams](#data-flow-diagrams)
+3. [API Version Mechanism](#api-version-mechanism)
+4. [Update Process](#update-process)
+5. [Component Lifecycle](#component-lifecycle)
+6. [Error Handling](#error-handling)
+7. [Data Flow Diagrams](#data-flow-diagrams)
 
 ---
 
@@ -231,6 +232,61 @@ This triggers the coordinator's `_async_update_data()` method, which:
 1. Checks for existing session (none exists initially)
 2. Calls `_update()` which creates the session and WebSockets
 3. Returns initial state data
+
+---
+
+## API Version Mechanism
+
+The integration supports both legacy V2 APIs and updated V3-style APIs, including intelligent tariff upgraded V2 hardware that runs firmware that uses V3 APIs.
+
+### User-Facing Option
+
+Options flow provides an API mode selector:
+
+- `auto` (default): Infer API behavior from charger metadata and firmware
+- `v2`: Force legacy API behavior
+- `v3`: Force updated API behavior
+
+### Detection Logic
+
+API selection is performed by `HypervoltApiClient.get_charger_api_version()` and returns `2` or `3`.
+
+Detection order:
+
+1. If override is `v2`, return 2
+2. If override is `v3`, return 3
+3. If charger major version is native V3, return 3
+4. If charger major version is V2, infer from firmware string:
+    - missing firmware version: return 2
+    - short firmware string (`len(strip(version)) <= 7`): return 3 (updated V2 firmware). I'm not aware of a better method of determining which firmwar/device uses which API version.
+    - otherwise: return 2
+
+Firmware is requested over sync websocket (`firmware.version`) after websocket login and stored in both coordinator state and API client.
+
+### Runtime Transition: V2 to V3 API Behavior
+
+For V2 hardware that is detected as V3 API capable at runtime:
+
+- Coordinator tracks last observed effective API version
+- On transition `2 -> 3`, it persists resolved mode as V3 and schedules a single config entry reload
+- Reload is guarded so it only occurs when user mode is `auto`
+- Forced `v2`/`v3` modes never auto-promote
+
+This reload exists to rebuild entities/platform features that are API-version dependent (for example schedule-mode entities).
+
+### Persistence and Storage
+
+Resolved auto-detection is stored in config entry options under a hidden key:
+
+- `resolved_api_version` (`CONF_RESOLVED_API_VERSION`)
+
+Effective mode precedence is:
+
+1. Explicit user override (`api_version_override` = `v2` or `v3`)
+2. Resolved stored mode (`resolved_api_version`) when override is `auto`
+3. Pure live auto-detection fallback
+
+The options flow saves options by merging `user_input` into existing options. This preserves hidden keys like `resolved_api_version` when users edit visible options.
 
 ---
 

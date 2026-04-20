@@ -54,7 +54,7 @@ async def login_and_get_chargers(
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Hypervolt Charger."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.chargers: list[dict[str, Any]] = []
         self.login_user_input: dict[str, Any] | None = None
 
@@ -202,7 +202,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Preserve any hidden runtime options we may store in config entry options.
+            options = dict(self.config_entry.options)
+            options.update(user_input)
+            return self.async_create_entry(title="", data=options)
 
         return self.async_show_form(
             step_id="init",

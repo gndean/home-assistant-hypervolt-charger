@@ -24,7 +24,9 @@ from .const import (
     DOMAIN,
     CONF_ENABLE_STALENESS_DETECTION,
     CONF_API_VERSION_OVERRIDE,
+    CONF_RESOLVED_API_VERSION,
     API_VERSION_AUTO,
+    API_VERSION_V3,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,7 +49,14 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             username,
             password,
             charger_id,
-            config_entry.options.get(CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO),
+            (
+                config_entry.options.get(CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO)
+                if config_entry.options.get(CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO)
+                != API_VERSION_AUTO
+                else config_entry.options.get(
+                    CONF_RESOLVED_API_VERSION, API_VERSION_AUTO
+                )
+            ),
         )
         _LOGGER.debug(
             f"Create_hypervolt_coordinator HypervoltApiClient created, charger_id: {charger_id}"
@@ -106,6 +115,43 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.last_stale_reconnect_attempt: datetime | None = hass.data.get(
             self._stale_reload_key
         )
+        self._api_mode_reload_scheduled = False
+        self._last_api_version = self.api.get_charger_api_version()
+
+    def _effective_api_version_override(self) -> str:
+        """Return effective override, applying resolved auto mode if available."""
+        override = self.config_entry.options.get(
+            CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO
+        )
+        if override != API_VERSION_AUTO:
+            return override
+        return self.config_entry.options.get(
+            CONF_RESOLVED_API_VERSION, API_VERSION_AUTO
+        )
+
+    async def _async_promote_to_v3_api_and_reload(self) -> None:
+        """Persist resolved V3 API mode in auto and reload once to rebuild entities."""
+        if self._api_mode_reload_scheduled:
+            return
+
+        if (
+            self.config_entry.options.get(CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO)
+            != API_VERSION_AUTO
+        ):
+            return
+
+        if self.config_entry.options.get(CONF_RESOLVED_API_VERSION) == API_VERSION_V3:
+            return
+
+        options = dict(self.config_entry.options)
+        options[CONF_RESOLVED_API_VERSION] = API_VERSION_V3
+        self.hass.config_entries.async_update_entry(self.config_entry, options=options)
+
+        self._api_mode_reload_scheduled = True
+        _LOGGER.info(
+            "Detected upgraded V2 charger using V3 APIs; reloading integration to apply V3 entities"
+        )
+        self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
 
     @property
     def hypervolt_client(self) -> HypervoltApiClient:
@@ -125,9 +171,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         except Exception as exc:
             raise UpdateFailed() from exc
 
-            # Drop-in LED effect definitions loaded from `led_effects/*.{yaml,yml}`.
-            _LOGGER.debug("HypervoltCoordinator _async_update_data exit")
-
     async def _update(self) -> HypervoltDeviceState:
         """Return updated data from the Hypervolt API.
 
@@ -143,9 +186,7 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             _LOGGER.debug("Hypervolt _update enter")
 
             # Keep API mode override in sync with latest options.
-            self.api.api_version_override = self.config_entry.options.get(
-                CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO
-            )
+            self.api.api_version_override = self._effective_api_version_override()
 
             # If we have an active session, check if it's actually alive
             if (
@@ -328,6 +369,10 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         self.api.api_version_override = self.config_entry.options.get(
             CONF_API_VERSION_OVERRIDE, API_VERSION_AUTO
         )
+        if self.api.api_version_override == API_VERSION_AUTO:
+            self.api.api_version_override = self.config_entry.options.get(
+                CONF_RESOLVED_API_VERSION, API_VERSION_AUTO
+            )
 
         seconds_to_expiry = (
             self.api.get_access_token_expiry() - datetime.now(UTC)
@@ -423,6 +468,11 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         # Reset the stale reconnect backoff timer since we received data
         # This allows us to quickly detect staleness again if data stops flowing
         self.last_stale_reconnect_attempt = None
+
+        current_api_version = self.api.get_charger_api_version()
+        if self._last_api_version == 2 and current_api_version == 3:
+            await self._async_promote_to_v3_api_and_reload()
+        self._last_api_version = current_api_version
 
         self.async_set_updated_data(state)
 

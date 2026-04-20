@@ -33,7 +33,7 @@ async def async_setup_entry(
     # Charger name entity for all versions
     entities.append(HypervoltChargerName(coordinator))
 
-    if coordinator.api.get_charger_major_version() >= 3:
+    if coordinator.api.get_charger_api_version() >= 3:
         # Create a text entity for each schedule interval
         for interval_index in range(NUM_SCHEDULE_INTERVALS):
             entities.append(HypervoltScheduleDaysOfWeek(coordinator, interval_index))
