@@ -18,7 +18,7 @@ from .hypervolt_device_state import (
     HypervoltScheduleInterval,
     NUM_SCHEDULE_INTERVALS,
 )
-from .const import DOMAIN
+from .const import DOMAIN, FEATURE_BATTERY_SAFE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
         self.interval_index = interval_index
 
     # TODO: Get these from translations
-    _CHARGE_MODE_STRINGS = ["Boost", "Eco", "Super Eco"]
+    _CHARGE_MODE_STRINGS = ["Boost", "Eco", "Super Eco", "Battery Safe"]
 
     @property
     def name(self) -> str:
@@ -73,6 +73,18 @@ class ChargeModeSelect(HypervoltEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return a set of selectable options."""
+
+        if self.is_schedule_selector:
+            return self._CHARGE_MODE_STRINGS
+
+        features = self.coordinator.data.features
+        if features is not None and FEATURE_BATTERY_SAFE not in features:
+            # Charger has reported its features and doesn't support Battery Safe
+            return [
+                mode
+                for mode in self._CHARGE_MODE_STRINGS
+                if mode != "Battery Safe"
+            ]
 
         return self._CHARGE_MODE_STRINGS
 

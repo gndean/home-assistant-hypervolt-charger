@@ -39,7 +39,7 @@ The integration is intended to match the features of the iOS and Android apps.
 | Hypervolt Car Plugged | Indicates whether the car is currently plugged into the charger. | ⚠️ V3 chargers only. |
 | Hypervolt Lock State | Matches the lock feature in the app and allows locking of the charger. The `Lock Pending` state is mapped to `On`. | |
 | Hypervolt Activation Mode | Switches between `Plug and Charge` and `Schedule Charge` modes. | Use to start/stop charging. ⚠️Changes to this setting are not always reflected in realtime within the integration or Hypervolt app. If changed externally to the integration its state should update to the correct state within 5 minutes. |
-| Hypervolt Charge Mode | Switches between `Boost`, `Eco`, and `Super Eco` modes. | |
+| Hypervolt Charge Mode | Switches between `Boost`, `Eco`, `Super Eco`, and `Battery Safe` modes. | |
 | Hypervolt Charger Name | The user-defined name for the charger. Can be read and updated. | This name is stored in the cloud and will be reflected in the Hypervolt mobile app. |
 | Hypervolt Max Current | Reads and sets the maximum charging current, in Amps. | |
 | Hypervolt LED | Controls the charger's LEDs as an RGB light. Supports built-in effects and any custom effects loaded from the `led_effects` folder. | The Effect setting works as follows: `No effect` is equivalent to disabling the LED mode in the Hypervolt app and allows the charger to set the LED depending on state. In this case, the colour set in the integration is ignored. `Static` sets a single colour for all LEDs. All other effects are a preset pattern; either one of the built-in Hypervolt animations, or a static pattern as defined by the `led_effects` files. |

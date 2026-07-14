@@ -1157,6 +1157,8 @@ class HypervoltApiClient:
                 state.max_current_milliamps = item["max_current"]
             if "solar_mode" in item:
                 state.charge_mode = HypervoltChargeMode[item["solar_mode"].upper()]
+            if "features" in item:
+                state.features = item["features"]
             if "release_state" in item:
                 state.release_state = HypervoltReleaseState[
                     item["release_state"].upper()

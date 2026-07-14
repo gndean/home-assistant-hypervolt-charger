@@ -14,6 +14,7 @@ class HypervoltChargeMode(Enum):
     BOOST = 0
     ECO = 1
     SUPER_ECO = 2
+    SUPER_ECO_BATTERY_SAFE = 3
 
 
 class HypervoltActivationMode(Enum):
@@ -83,6 +84,7 @@ class HypervoltDeviceState:
         self.led_brightness = None
         self.lock_state: HypervoltLockState = None
         self.charge_mode: HypervoltChargeMode = None
+        self.features: list[str] | None = None
         self.release_state: HypervoltReleaseState = None
         self.activation_mode: HypervoltActivationMode = None
         self.schedule_intervals: list[HypervoltScheduleInterval] = None

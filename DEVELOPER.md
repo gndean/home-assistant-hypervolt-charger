@@ -121,14 +121,14 @@ Data model representing the complete state of a charger.
 - `max_current_milliamps` - Maximum current limit
 - `led_brightness` - LED brightness (0-1)
 - `lock_state` - Cable lock state
-- `charge_mode` - Charging mode (BOOST, ECO, SUPER_ECO)
+- `charge_mode` - Charging mode (BOOST, ECO, SUPER_ECO, SUPER_ECO_BATTERY_SAFE)
 - `activation_mode` - How charging starts (PLUG_AND_CHARGE, SCHEDULE, OCTOPUS)
 - `schedule_intervals` - Scheduled charging times
 - `car_plugged` - Whether a car is connected
 
 **Enumerations:**
 - `HypervoltLockState` - UNLOCKED, PENDING_LOCK, LOCKED
-- `HypervoltChargeMode` - BOOST, ECO, SUPER_ECO
+- `HypervoltChargeMode` - BOOST, ECO, SUPER_ECO, SUPER_ECO_BATTERY_SAFE
 - `HypervoltActivationMode` - PLUG_AND_CHARGE, SCHEDULE, OCTOPUS
 - `HypervoltReleaseState` - DEFAULT, RELEASED
 
