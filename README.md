@@ -94,5 +94,5 @@ It also has code to support an [intelligent_dispatching](https://bottlecapdave.g
 
 # Known limitations
 
-- Log in has to be via email address and password. Google or Apple login not supported
+- Log in has to be via email address and password. Google or Apple login not supported. If you currently log in via Google or Apple, you can add a email+password Sign-in method via the Hypervolt app, allowing this integation to be used while retaining your existing method. In the Hypervolt app, select: Settings / Account settings / Sign in methods
 - English language only
