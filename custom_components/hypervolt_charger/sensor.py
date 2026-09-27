@@ -21,7 +21,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .hypervolt_device_state import HypervoltReleaseState
+from .hypervolt_device_state import HypervoltLockState, HypervoltReleaseState
 from .hypervolt_entity import HypervoltEntity
 from .hypervolt_update_coordinator import HypervoltUpdateCoordinator
 
@@ -145,6 +145,7 @@ async def async_setup_entry(
             state_class=None,
         ),
         ChargingReadinessSensor(coordinator),
+        LockStatusSensor(coordinator),
     ]
 
     async_add_entities(sensors)
@@ -236,3 +237,33 @@ class ChargingReadinessSensor(HypervoltEntity, SensorEntity):
             return "Not Ready - Force Stopped"
         else:
             return "Ready"
+
+
+LOCK_STATUS_NAMES = {
+    HypervoltLockState.UNLOCKED: "Unlocked",
+    HypervoltLockState.PENDING_LOCK: "Pending",
+    HypervoltLockState.LOCKED: "Locked",
+}
+
+
+class LockStatusSensor(HypervoltEntity, SensorEntity):
+    """Read-only lock status, distinguishing Pending from Locked, which the Lock State switch cannot"""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = list(LOCK_STATUS_NAMES.values())
+
+    def __init__(self, coordinator: HypervoltUpdateCoordinator):
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator)
+
+    @property
+    def unique_id(self):
+        return super().unique_id + "_lock_status"
+
+    @property
+    def name(self):
+        return super().name + " Lock Status"
+
+    @property
+    def native_value(self):
+        return LOCK_STATUS_NAMES.get(self.coordinator.data.lock_state)
