@@ -98,7 +98,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
         # Drop-in LED effect definitions loaded from `led_effects/*.{yaml,yml}`.
         self.led_effect_definitions: dict[str, LedEffectDefinition] = {}
         self.notify_on_hypervolt_sync_push_task = None
-        self.notify_on_hypervolt_session_in_progress_push_task = None
 
         # Staleness detection thresholds
         # For V3 devices, if we haven't received a websocket message in this time, force reconnection
@@ -249,9 +248,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             if self.notify_on_hypervolt_sync_push_task:
                 self.notify_on_hypervolt_sync_push_task.cancel()
 
-            if self.notify_on_hypervolt_session_in_progress_push_task:
-                self.notify_on_hypervolt_session_in_progress_push_task.cancel()
-
             if self.api_session:
                 await self.api_session.close()
 
@@ -269,19 +265,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             )
 
             if self.api.get_charger_api_version() == 2:
-                # Version 2 sends messages when a session is in progress via in-progress websocket
-                # Version 3 uses the sync websocket for everything
-                self.notify_on_hypervolt_session_in_progress_push_task = (
-                    asyncio.create_task(
-                        self.api.notify_on_hypervolt_session_in_progress_websocket(
-                            self.api_session,
-                            access_token,
-                            self.get_state,
-                            self.async_on_state_updated,
-                        )
-                    )
-                )
-
                 try:
                     state = await self.api.v2_update_state_from_schedule(
                         self.api_session, self.data
@@ -389,9 +372,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             if self.notify_on_hypervolt_sync_push_task:
                 self.notify_on_hypervolt_sync_push_task.cancel()
 
-            if self.notify_on_hypervolt_session_in_progress_push_task:
-                self.notify_on_hypervolt_session_in_progress_push_task.cancel()
-
             self.notify_on_hypervolt_sync_push_task = asyncio.create_task(
                 self.api.notify_on_hypervolt_sync_websocket(
                     self.api_session,
@@ -400,20 +380,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
                     self.async_on_state_updated,
                 )
             )
-
-            if self.api.get_charger_api_version() == 2:
-                # Version 2 sends messages when a session is in progress via in-progress websocket
-                # Version 3 uses the sync websocket for everything
-                self.notify_on_hypervolt_session_in_progress_push_task = (
-                    asyncio.create_task(
-                        self.api.notify_on_hypervolt_session_in_progress_websocket(
-                            self.api_session,
-                            access_token,
-                            self.get_state,
-                            self.async_on_state_updated,
-                        )
-                    )
-                )
 
         # If we're a v3 charger, we don't need to do anything, as everything is synced
         # via the sync websocket
@@ -446,17 +412,6 @@ class HypervoltUpdateCoordinator(DataUpdateCoordinator[HypervoltDeviceState]):
             was_cancelled = self.notify_on_hypervolt_sync_push_task.cancel()
             _LOGGER.debug(
                 f"notify_on_hypervolt_sync_push_task {task_name} was cancelled :{was_cancelled}"
-            )
-
-        if self.notify_on_hypervolt_session_in_progress_push_task:
-            task_name = (
-                self.notify_on_hypervolt_session_in_progress_push_task.get_name()
-            )
-            was_cancelled = (
-                self.notify_on_hypervolt_session_in_progress_push_task.cancel()
-            )
-            _LOGGER.debug(
-                f"notify_on_hypervolt_session_in_progress_push_task {task_name} was cancelled :{was_cancelled}"
             )
 
     def get_state(self) -> HypervoltDeviceState:

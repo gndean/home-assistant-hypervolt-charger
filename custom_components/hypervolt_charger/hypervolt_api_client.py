@@ -65,7 +65,6 @@ class HypervoltApiClient:
         self.api_version_override = api_version_override
 
         self.websocket_sync: WebSocketClientProtocol | None = None
-        self.websocket_session_in_progress: WebSocketClientProtocol | None = None
 
         # Store a list of messages sent to the sync websocket
         self.websocket_sync_sent_messages = []
@@ -95,10 +94,6 @@ class HypervoltApiClient:
         if self.websocket_sync:
             await self.websocket_sync.close()
         self.websocket_sync = None
-
-        if self.websocket_session_in_progress:
-            await self.websocket_session_in_progress.close()
-        self.websocket_session_in_progress = None
 
         if self._led_apply_task is not None:
             self._led_apply_task.cancel()
@@ -677,63 +672,6 @@ class HypervoltApiClient:
     def increase_backoff_delay(self, delay_secs: int):
         """Return increased back-off delay for next time, up to a max of 5 minutes."""
         return min(300, int(delay_secs * 1.7))
-
-    async def notify_on_hypervolt_session_in_progress_websocket(
-        self,
-        session: aiohttp.ClientSession,
-        access_token: str,
-        get_state_callback,
-        on_state_updated_async_callback,
-    ):
-        """Open websocket to /session/in-progress endpoint and notify on updates. This function blocks indefinitely."""
-        await self.notify_on_websocket(
-            f"notify_on_websocket session/in-progress, {asyncio.current_task().get_name()},",
-            f"wss://api.hypervolt.co.uk/ws/charger/{self.charger_id}/session/in-progress",
-            session,
-            access_token,
-            get_state_callback,
-            self.on_session_in_progress_websocket_connected,
-            self.on_session_in_progress_websocket_message,
-            on_state_updated_async_callback,
-            self.on_session_in_progress_websocket_closed,
-        )
-
-    async def on_session_in_progress_websocket_connected(
-        self, websocket, access_token: str
-    ):
-        """Handle session in progress websocket connection."""
-        self.websocket_session_in_progress = websocket
-
-    async def on_session_in_progress_websocket_message(
-        self, message, get_state_callback, on_state_updated_async_callback
-    ):
-        """Handle messages from the session in progress websocket."""
-        # Update timestamp FIRST (before any exception handling)
-        # This is used for staleness detection
-        self.last_websocket_activity_time = datetime.now(UTC)
-
-        try:
-            # Example messages:
-            # {"charging":false,"session":240,"milli_amps":32000,"true_milli_amps":0,"watt_hours":2371,"ccy_spent":34,"carbon_saved_grams":1036,"ct_current":0,"ct_power":0,"voltage":0}
-
-            jmsg = json.loads(message)
-            state = get_state_callback()
-
-            self.on_message_session(jmsg, state)
-
-            if on_state_updated_async_callback:
-                await on_state_updated_async_callback(state)
-
-        except Exception:
-            _LOGGER.exception(
-                "on_session_in_progress_websocket_message_callback error, message: %s",
-                message,
-            )
-
-    async def on_session_in_progress_websocket_closed(self):
-        """Handle session in progress websocket closure."""
-        _LOGGER.debug("on_session_in_progress_websocket_closed")
-        self.websocket_session_in_progress = None
 
     async def send_message_to_sync(self, message: dict):
         """Send a message to the sync websocket."""
