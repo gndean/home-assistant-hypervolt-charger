@@ -36,12 +36,6 @@ async def async_setup_entry(
     sensors = [
         HypervoltSensor(
             coordinator,
-            "Session ID",
-            "session_id",
-            state_class=SensorStateClass.MEASUREMENT,
-        ),
-        HypervoltSensor(
-            coordinator,
             "Session Energy",
             "session_watthours",
             device_class=SensorDeviceClass.ENERGY,
