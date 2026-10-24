@@ -86,7 +86,6 @@ The central orchestrator that manages data updates and WebSocket connections.
 - `api: HypervoltApiClient` - API client instance
 - `api_session: aiohttp.ClientSession` - HTTP session
 - `notify_on_hypervolt_sync_push_task` - WebSocket task for sync updates
-- `notify_on_hypervolt_session_in_progress_push_task` - WebSocket task for session updates (V2 only)
 
 #### 2. **HypervoltApiClient** (`hypervolt_api_client.py`)
 
@@ -102,13 +101,11 @@ Handles all communication with the Hypervolt cloud API.
 **Key Methods:**
 - `login()` - Authenticate and get tokens
 - `refresh_access_token()` - Refresh the access token
-- `notify_on_hypervolt_sync_websocket()` - Main WebSocket connection (all updates)
-- `notify_on_hypervolt_session_in_progress_websocket()` - Session-specific WebSocket (V2 only)
+- `notify_on_hypervolt_sync_websocket()` - WebSocket connection (all updates)
 - `send_message_to_sync()` - Send commands to the charger
 
 **WebSocket Endpoints:**
-- `/ws/charger/{id}/sync` - Primary WebSocket for all state updates
-- `/ws/charger/{id}/session/in-progress` - Session updates (V2 chargers only)
+- `/ws/charger/{id}/sync` - WebSocket for all state and session updates
 
 #### 3. **HypervoltDeviceState** (`hypervolt_device_state.py`)
 
@@ -298,7 +295,7 @@ The integration uses a **hybrid push/poll model** to keep state synchronized.
 
 #### 1. **WebSocket Push Updates (Primary)**
 
-Real-time updates are pushed through WebSocket connections:
+Real-time updates are pushed through the sync WebSocket:
 
 ```mermaid
 graph LR
@@ -308,13 +305,7 @@ graph LR
     D -->|async_set_updated_data| E[All Entities]
 ```
 
-**V3 Chargers:**
-- Single WebSocket: `/ws/charger/{id}/sync`
-- Receives all state updates
-
-**V2 Chargers:**
-- Primary WebSocket: `/ws/charger/{id}/sync`
-- Session WebSocket: `/ws/charger/{id}/session/in-progress`
+Both V2 and V3 chargers use a single WebSocket, `/ws/charger/{id}/sync`, which receives all state updates, including `get.session` notifications for the charging session.
 
 #### 2. **Polling (Safety Net)**
 
@@ -456,11 +447,7 @@ graph TD
     H -->|Yes| K[Create HTTP Session]
     K --> L[Call API Login]
     L --> M[Start Sync WebSocket Task]
-    M --> N{V2 Charger?}
-    N -->|Yes| O[Start Session WebSocket Task]
-    N -->|No| P[Continue]
-    O --> P
-    P --> Q[Send Login via WebSocket]
+    M --> Q[Send Login via WebSocket]
     Q --> R[Request Snapshot]
     R --> S[Setup Platform Entities]
     S --> T[Entities Created]
@@ -719,7 +706,6 @@ graph TB
     subgraph "Network"
         HTTP[HTTPS REST API]
         WS1[WebSocket: /sync]
-        WS2[WebSocket: /session<br/>V2 only]
     end
 
     subgraph "Hypervolt Cloud"
@@ -738,12 +724,10 @@ graph TB
     API -->|Commands| HTTP
     API -->|Queries| HTTP
     API <-->|Real-time Updates| WS1
-    API <-->|Session Updates| WS2
 
     HTTP --> Auth
     HTTP --> API_Server
     WS1 --> WS_Server
-    WS2 --> WS_Server
 
     Auth --> Charger_Backend
     API_Server --> Charger_Backend
@@ -840,13 +824,9 @@ self.websocket_sync_sent_messages = []  # Last 20 messages
 
 The sync WebSocket doesn't include method names in responses, only message IDs. Storing sent messages allows mapping responses back to requests for proper handling.
 
-### 3. **Why Separate WebSocket Tasks?**
+### 3. **Why a Single WebSocket?**
 
-V2 chargers use two WebSockets:
-- `/sync` - Configuration and general state
-- `/session/in-progress` - Real-time session data (higher frequency)
-
-V3 chargers consolidated everything into `/sync`.
+V2 chargers used to also open `/session/in-progress` for real-time session data. Hypervolt has deprecated that endpoint, and `/sync` already pushes the same session data as `get.session` notifications for V2 and V3 chargers alike, so everything goes through `/sync`.
 
 ### 4. **Why Proactive Token Refresh?**
 
@@ -875,7 +855,7 @@ def get_charger_major_version(self) -> int:
 ### V2 Chargers
 
 - **Schedule API:** REST endpoint (`/charger/by-id/{id}/schedule`)
-- **WebSockets:** 2 connections (sync + session-in-progress)
+- **WebSockets:** 1 connection (sync only)
 - **Schedule Format:** Simple time intervals
 - **Activation Modes:** PLUG_AND_CHARGE, SCHEDULE
 
